@@ -1,0 +1,160 @@
+---
+"name": "Health Check"
+"on":
+  "workflow_dispatch": {}
+  "pull_request":
+    "types":
+      - "opened"
+      - "synchronize"
+      - "reopened"
+  "schedule":
+    -
+      "cron": "0 1 * * *"
+  "workflow_call":
+    "secrets":
+      "CODECOV_TOKEN":
+        "required": true
+"permissions": {}
+"concurrency":
+  "group": "Health Check-${{ github.ref }}"
+  "cancel-in-progress": true
+"defaults":
+  "run":
+    "shell": "bash"
+"run-name": "Health Check"
+"jobs":
+  "analyze":
+    "name": "Analyze"
+    "permissions":
+      "actions": "read"  # required
+      "contents": "read"
+      "security-events": "write"  # required
+    "runs-on": "ubuntu-latest"
+    "strategy":
+      "matrix":
+        "language":
+          - "python"
+          - "actions"
+      "fail-fast": true
+    "steps":
+      -
+        "name": "Checkout Repository"
+        "id": "checkout-repository"
+        # ryl disable-line rule:line-length
+        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"  # v7.0.1
+        "with":
+          "persist-credentials": false
+      -
+        "name": "Initialize Codeql"
+        "id": "initialize-codeql"
+        # ryl disable-line rule:line-length
+        "uses": "github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2"  # v4.38.2
+        "with":
+          "languages": "${{ matrix.language }}"
+          "config-file": ".github/codeql.yml"
+      -
+        "name": "Analyze Code"
+        "id": "analyze-code"
+        # ryl disable-line rule:line-length
+        "uses": "github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2"  # v4.38.2
+  "health-checks":
+    "name": "Health Checks"
+    "permissions":
+      "contents": "read"
+    "runs-on": "ubuntu-latest"
+    "steps":
+      -
+        "name": "Checkout Repository"
+        "id": "checkout-repository"
+        # ryl disable-line rule:line-length
+        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"  # v7.0.1
+        "with":
+          "persist-credentials": false
+      -
+        "name": "Setup Package Manager"
+        "id": "setup-package-manager"
+        # ryl disable-line rule:line-length
+        "uses": "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7"  # v10.2.0
+        "with":
+          "python-version": "3.15"
+      -
+        "name": "Update Dependencies"
+        "id": "update-dependencies"
+        "run": "uv lock --upgrade"
+      -
+        "name": "Install Dependencies"
+        "id": "install-dependencies"
+        "run": "uv sync"
+      -
+        "name": "Run Version Control Hooks"
+        "id": "run-version-control-hooks"
+        "run": "uv run prek run --all-files --group=all"
+        "env":
+          "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+  "matrix-health-checks":
+    "name": "Matrix Health Checks"
+    "permissions":
+      "contents": "read"
+    "runs-on": "${{ matrix.os }}"
+    "strategy":
+      "matrix":
+        "os":
+          - "ubuntu-latest"
+          - "windows-latest"
+          - "macos-latest"
+        "python-version":
+          - "3.12"
+          - "3.13"
+          - "3.14"
+          - "3.15"
+      "fail-fast": true
+    "steps":
+      -
+        "name": "Checkout Repository"
+        "id": "checkout-repository"
+        # ryl disable-line rule:line-length
+        "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"  # v7.0.1
+        "with":
+          "persist-credentials": false
+      -
+        "name": "Setup Package Manager"
+        "id": "setup-package-manager"
+        # ryl disable-line rule:line-length
+        "uses": "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7"  # v10.2.0
+        "with":
+          "python-version": "${{ matrix.python-version }}"
+      -
+        "name": "Update Dependencies"
+        "id": "update-dependencies"
+        "run": "uv lock --upgrade"
+      -
+        "name": "Install Dependencies"
+        "id": "install-dependencies"
+        "run": "uv sync"
+      -
+        "name": "Run Tests"
+        "id": "run-tests"
+        "run": "uv run pytest"
+      -
+        "name": "Upload Coverage Report"
+        "id": "upload-coverage-report"
+        # ryl disable-line rule:line-length
+        "uses": "codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5"  # v7.1.1
+        "with":
+          "files": "coverage.xml"
+          "token": "${{ secrets.CODECOV_TOKEN }}"
+          "fail_ci_if_error": "true"
+          "skip_validation": "true"
+  "health-check":
+    "name": "Health Check"
+    "needs":
+      - "analyze"
+      - "health-checks"
+      - "matrix-health-checks"
+    "runs-on": "ubuntu-latest"
+    "steps":
+      -
+        "name": "Aggregate Jobs"
+        "id": "aggregate-jobs"
+        "run": "echo 'Aggregating jobs into one job.'"
+...

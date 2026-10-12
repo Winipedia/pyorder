@@ -1,0 +1,40 @@
+---
+"name": "Feature Request"
+"description": "Suggest a new feature"
+"labels":
+  - "enhancement"
+"title": "[Feature]: "
+"body":
+  -
+    "type": "textarea"
+    "attributes":
+      "label": "Summary"
+      "description": "Brief explanation of the feature"
+    "id": "summary"
+    "validations":
+      "required": true
+  -
+    "type": "textarea"
+    "attributes":
+      "label": "Use Case"
+      "description": "Why do you need this feature?"
+    "id": "use_case"
+    "validations":
+      "required": true
+  -
+    "type": "textarea"
+    "attributes":
+      "label": "Proposed Solution"
+      "description": "How might this feature work?"
+    "id": "proposed"
+    "validations":
+      "required": false
+  -
+    "type": "textarea"
+    "attributes":
+      "label": "Alternatives Considered"
+      "description": "Other solutions you've considered"
+    "id": "alternatives"
+    "validations":
+      "required": false
+...
