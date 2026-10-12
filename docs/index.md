@@ -44,6 +44,6 @@
 
 ---
 
-> Add your description here
+> A Python source code ordering tool.
 
 ---
