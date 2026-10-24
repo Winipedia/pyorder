@@ -1,6 +1,6 @@
 [project]
 name = "pyorder"
-version = "0.5.1"
+version = "0.5.2"
 description = "A Python source code ordering linter."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -50,6 +50,7 @@ dev = [
   "pre-commit-hooks>=6.0.0",
   "prek>=0.5.5",
   "pyflakes>=4.0.3",
+  "pyorder",
   "pyrig-badge>=0.5.5",
   "pyrig-fixtures>=2.27.0",
   "pyrig-opensource>=1.3.0",
