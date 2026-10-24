@@ -9,8 +9,8 @@ from pyorder.rig.cli.subcommands import check
 
 def test_check(
     command_works: Callable[[FunctionType], bool],
-    command_calls_function: Callable[[FunctionType, FunctionType, Iterable[str]], bool],
+    command_calls_func: Callable[[FunctionType, FunctionType, Iterable[str]], bool],
 ) -> None:
     """Test function."""
     assert command_works(check)
-    assert command_calls_function(check, check_order, [])
+    assert command_calls_func(check, check_order, [""])

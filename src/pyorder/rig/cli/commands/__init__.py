@@ -1,1 +1,1 @@
-"""Package initialization."""
+"""Command implementations for Python source ordering."""

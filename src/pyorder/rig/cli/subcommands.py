@@ -6,9 +6,36 @@ groups, with each group's name derived from the kebab-case form of the
 variable name.
 """
 
+from pathlib import Path
+from typing import Annotated
 
-def check() -> None:
-    """This is a cli subcommand."""
+import typer
+
+
+def check(
+    files: Annotated[
+        list[Path],
+        typer.Argument(
+            help="Files to check.",
+        ),
+    ],
+    *,
+    fix: Annotated[
+        bool,
+        typer.Option(
+            help="Automatically fix issues.",
+        ),
+    ] = False,
+) -> None:
+    """Check order of Python source code.
+
+    Args:
+        files: Paths to Python source files.
+        fix: Whether to apply ordering changes rather than only report them.
+
+    Raises:
+        typer.Exit: If any file is not correctly ordered.
+    """
     from pyorder.rig.cli.commands.check import check_order  # noqa: PLC0415
 
-    check_order()
+    check_order(files, fix=fix)

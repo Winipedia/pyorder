@@ -1,1 +1,1 @@
-"""The top-level package for the project."""
+"""Readability-oriented ordering of Python source code."""
