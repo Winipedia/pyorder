@@ -290,7 +290,7 @@ class ExternalChild(external.Base): pass
         }
 
     def test_definition_dependencies(self) -> None:
-        """Collect decorators and bases, but not class-body references."""
+        """Collect definition header dependencies, but not class-body references."""
         code = """@first
 @external.decorate(config)
 class Child(Base[Item], Other):
@@ -306,6 +306,16 @@ class Child(Base[Item], Other):
             "Item",
             "Other",
         }
+
+    def test_definition_dependencies_metaclass(self) -> None:
+        """Collect class keyword values as dependencies."""
+        code = """class Child(metaclass=Meta, option=Config): pass
+class Meta(type): pass
+class Config: pass
+"""
+        definition = next(Module.I.definitions(ast.parse(code)))
+
+        assert Module.I.definition_dependencies(definition) == {"Meta", "Config"}
 
     @pytest.mark.parametrize(
         "code",
@@ -363,6 +373,20 @@ class Zebra: pass
 
 @decorate
 class Alpha(Zebra): pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
+    def test_order_code_class_metaclass(self) -> None:
+        """Put a metaclass before its dependent class."""
+        code = """class Child(metaclass=Meta): pass
+
+class Meta(type): pass
+"""
+        expected = """class Meta(type): pass
+
+class Child(metaclass=Meta): pass
 """
 
         assert Module.I.order_code(code) == expected

@@ -294,9 +294,9 @@ class Module(DependencySubclass):
         Only references matching supplied definition names contribute.
         Independent names have rank zero; duplicate names share a rank.
         Between distinct reference groups, users have lower ranks than their
-        targets, except that bases and decorators precede their dependent
-        definitions. Each group occupies its earliest layer after all incoming
-        groups. Cycles share a rank.
+        targets, except that class header expressions and decorators precede
+        their dependent definitions. Each group occupies its earliest layer
+        after all incoming groups. Cycles share a rank.
 
         Args:
             definitions: Definitions whose names and references establish ranks.
@@ -326,19 +326,26 @@ class Module(DependencySubclass):
         }
 
     def definition_dependencies(self, definition: AnyDefinition) -> set[str]:
-        """Collect names loaded in decorators and class base expressions.
+        """Collect definitions that this definition depends on.
+
+        These are usages that need to exist before this definition can be valid.
+        e.g. decorators, parent classes or meta classes, etc...
 
         Args:
-            definition: Definition whose dependency expressions to inspect.
+            definition: Definition whose dependencies to collect.
 
         Returns:
-            Names referenced by decorators and, for classes, bases, including
-            expression arguments. Dependencies are not resolved transitively.
+            Names of definitions that this definition depends on.
         """
         bases = definition.bases if isinstance(definition, ast.ClassDef) else ()
+        keywords = (
+            tuple(keyword.value for keyword in definition.keywords)
+            if isinstance(definition, ast.ClassDef)
+            else ()
+        )
         return {
             node.id
-            for expression in (*definition.decorator_list, *bases)
+            for expression in (*definition.decorator_list, *bases, *keywords)
             for node in ast.walk(expression)
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
         }
