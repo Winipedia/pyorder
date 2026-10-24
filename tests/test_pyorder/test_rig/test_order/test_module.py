@@ -90,6 +90,56 @@ class Example: pass
         assert Module.I.order_code(code) == expected
         assert Module.I.order_code(expected) == expected
 
+    def test_order_code_inheritance(self) -> None:
+        """Keep a base before its child even when names sort the other way."""
+        code = """class Alpha(Zebra): pass
+
+class Zebra: pass
+"""
+        expected = """class Zebra: pass
+
+class Alpha(Zebra): pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
+    def test_order_code_inheritance_chain(self) -> None:
+        """Order an inheritance chain from base to leaf."""
+        code = """class Alpha(Middle): pass
+
+class Middle(Zebra): pass
+
+class Zebra: pass
+"""
+        expected = """class Zebra: pass
+
+class Middle(Zebra): pass
+
+class Alpha(Middle): pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
+    def test_order_code_multiple_inheritance(self) -> None:
+        """Put both bases first, using alphabetical order between them."""
+        code = """class Alpha(Zebra, Other): pass
+
+class Zebra: pass
+
+class Other: pass
+"""
+        expected = """class Other: pass
+
+class Zebra: pass
+
+class Alpha(Zebra, Other): pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
     def test_reorder_definitions(self) -> None:
         """Test method."""
         code = """VALUE = 1
@@ -217,6 +267,137 @@ def independent(): pass
             "independent": 0,
         }
 
+    def test_definition_reference_ranks_inheritance(self) -> None:
+        """Reverse bases while retaining user-first body references."""
+        code = """def main(): return Child()
+class Base: pass
+class Child(Base[int]):
+    def method(self): return Base()
+class Factory:
+    def create(self): return Item()
+class Item: pass
+class ExternalChild(external.Base): pass
+"""
+        definitions = tuple(Module.I.definitions(ast.parse(code)))
+
+        assert Module.I.definition_reference_ranks(definitions) == {
+            "main": 0,
+            "Base": 0,
+            "Child": 1,
+            "Factory": 0,
+            "Item": 1,
+            "ExternalChild": 0,
+        }
+
+    def test_definition_dependencies(self) -> None:
+        """Collect decorators and bases, but not class-body references."""
+        code = """@first
+@external.decorate(config)
+class Child(Base[Item], Other):
+    value = BodyReference()
+"""
+        definition = next(Module.I.definitions(ast.parse(code)))
+
+        assert Module.I.definition_dependencies(definition) == {
+            "first",
+            "external",
+            "config",
+            "Base",
+            "Item",
+            "Other",
+        }
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """class Example:
+    value = BodyReference()
+""",
+            """def example():
+    return BodyReference()
+""",
+            """async def example():
+    return BodyReference()
+""",
+        ],
+    )
+    def test_definition_dependencies_without_dependencies(self, code: str) -> None:
+        """Body references are not dependencies for any definition kind."""
+        definition = next(Module.I.definitions(ast.parse(code)))
+
+        assert Module.I.definition_dependencies(definition) == set()
+
+    @pytest.mark.parametrize("function_kind", ["def", "async def"])
+    def test_order_code_function_decorator(self, function_kind: str) -> None:
+        """Move a local decorator before a synchronous or async function."""
+        code = f"""@decorate
+{function_kind} example():
+    pass
+
+def decorate(value):
+    return value
+"""
+        expected = f"""def decorate(value):
+    return value
+
+@decorate
+{function_kind} example():
+    pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
+    def test_order_code_class_decorator(self) -> None:
+        """Put a decorator and base before their dependent class."""
+        code = """@decorate
+class Alpha(Zebra): pass
+
+class Zebra: pass
+
+def decorate(value): return value
+"""
+        expected = """def decorate(value): return value
+
+class Zebra: pass
+
+@decorate
+class Alpha(Zebra): pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
+    def test_order_code_stacked_decorators(self) -> None:
+        """Order decorator dependencies without changing decorator application."""
+        code = """@first
+@second(config)
+def example(): pass
+
+def second(value):
+    return lambda function: function
+
+def config(): pass
+
+def first(value):
+    return value
+"""
+        expected = """def config(): pass
+
+def first(value):
+    return value
+
+def second(value):
+    return lambda function: function
+
+@first
+@second(config)
+def example(): pass
+"""
+
+        assert Module.I.order_code(code) == expected
+        assert Module.I.order_code(expected) == expected
+
     def test_definition_references(self) -> None:
         """Test method."""
         code = """def main():
@@ -233,7 +414,9 @@ def independent(): pass
 
     def test_definition_name_rank(self) -> None:
         """Test method."""
-        definition = next(Module.I.definitions(ast.parse("def example(): pass\n")))
+        code = """def example(): pass
+"""
+        definition = next(Module.I.definitions(ast.parse(code)))
 
         assert Module.I.definition_name_rank(definition, (definition,)) == "example"
 

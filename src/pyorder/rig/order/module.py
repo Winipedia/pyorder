@@ -289,13 +289,14 @@ class Module(DependencySubclass):
         cls,
         definitions: tuple[AnyDefinition, ...],
     ) -> dict[str, int]:
-        """Rank names in user-first reference layers, sharing ranks for cycles.
+        """Rank names in reference layers, reversing dependency references.
 
         Only references matching supplied definition names contribute.
         Independent names have rank zero; duplicate names share a rank.
         Between distinct reference groups, users have lower ranks than their
-        targets. Each group occupies its earliest layer after all groups that
-        reference it.
+        targets, except that bases and decorators precede their dependent
+        definitions. Each group occupies its earliest layer after all incoming
+        groups. Cycles share a rank.
 
         Args:
             definitions: Definitions whose names and references establish ranks.
@@ -310,7 +311,11 @@ class Module(DependencySubclass):
         self = cls()
         for definition in definitions:
             used = self.definition_references(definition) & names
-            graph.add_edges_from((definition.name, name) for name in used)
+            dependencies = self.definition_dependencies(definition) & names
+            graph.add_edges_from(
+                (definition.name, name) for name in used - dependencies
+            )
+            graph.add_edges_from((name, definition.name) for name in dependencies)
 
         condensed = nx.condensation(graph)
         return {
@@ -318,6 +323,24 @@ class Module(DependencySubclass):
             for rank, generation in enumerate(nx.topological_generations(condensed))
             for component in generation
             for name in condensed.nodes[component]["members"]
+        }
+
+    def definition_dependencies(self, definition: AnyDefinition) -> set[str]:
+        """Collect names loaded in decorators and class base expressions.
+
+        Args:
+            definition: Definition whose dependency expressions to inspect.
+
+        Returns:
+            Names referenced by decorators and, for classes, bases, including
+            expression arguments. Dependencies are not resolved transitively.
+        """
+        bases = definition.bases if isinstance(definition, ast.ClassDef) else ()
+        return {
+            node.id
+            for expression in (*definition.decorator_list, *bases)
+            for node in ast.walk(expression)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
         }
 
     def definition_references(self, definition: AnyDefinition) -> set[str]:
