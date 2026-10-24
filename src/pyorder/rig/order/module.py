@@ -261,8 +261,8 @@ class Module(DependencySubclass):
             Tuple of ranking rules represented as callables.
         """
         return (
-            self.definition_kind_rank,
             self.definition_reference_rank,
+            self.definition_kind_rank,
             self.definition_visibility_rank,
             self.definition_name_rank,
         )

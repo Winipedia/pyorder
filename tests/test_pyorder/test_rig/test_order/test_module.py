@@ -76,13 +76,13 @@ def zebra(): pass
         """Test method."""
         code = """class Example: pass
 
-def helper(): pass
+def helper(): Example()
 
 def main(): helper()
 """
         expected = """def main(): helper()
 
-def helper(): pass
+def helper(): Example()
 
 class Example: pass
 """
@@ -226,8 +226,8 @@ def _helper(): pass
         definitions = tuple(Module.I.definitions(ast.parse(code)))
 
         assert Module.I.definition_sort_key(definitions[1], definitions) == (
-            0,
             1,
+            0,
             1,
             "_helper",
         )
@@ -235,8 +235,8 @@ def _helper(): pass
     def test_definition_sort_keys(self) -> None:
         """Test method."""
         assert Module.I.definition_sort_keys() == (
-            Module.I.definition_kind_rank,
             Module.I.definition_reference_rank,
+            Module.I.definition_kind_rank,
             Module.I.definition_visibility_rank,
             Module.I.definition_name_rank,
         )
