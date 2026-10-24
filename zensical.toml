@@ -1,6 +1,6 @@
 [project]
 site_name = "pyorder"
-site_description = "A Python source code ordering tool."
+site_description = "A Python source code ordering linter."
 site_url = "https://Winipedia.github.io/pyorder"
 repo_url = "https://github.com/Winipedia/pyorder"
 edit_uri = "edit/main/docs"

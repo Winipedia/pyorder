@@ -1,7 +1,7 @@
 [project]
 name = "pyorder"
-version = "0.3.0"
-description = "A Python source code ordering tool."
+version = "0.3.1"
+description = "A Python source code ordering linter."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"

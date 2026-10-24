@@ -44,6 +44,6 @@
 
 ---
 
-> A Python source code ordering tool.
+> A Python source code ordering linter.
 
 ---

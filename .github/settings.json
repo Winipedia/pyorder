@@ -4,7 +4,7 @@
   },
   "repository": {
     "name": "pyorder",
-    "description": "A Python source code ordering tool.",
+    "description": "A Python source code ordering linter.",
     "homepage": "https://Winipedia.github.io/pyorder",
     "default_branch": "main",
     "delete_branch_on_merge": true,
