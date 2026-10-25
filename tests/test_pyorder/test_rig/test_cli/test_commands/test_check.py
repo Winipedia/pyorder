@@ -1,4 +1,4 @@
-"""Test module."""
+"""Check-command behavior against isolated source files."""
 
 from pathlib import Path
 
@@ -8,23 +8,41 @@ import typer
 from pyorder.rig.cli.commands.check import check_order
 
 
-def test_check_order(tmp_path: Path) -> None:
-    """Test function."""
-    files = Path("src").rglob("*.py")
-    assert check_order(files) is None
-
-    test_files = Path("tests").rglob("*.py")
-    assert check_order(test_files) is None
-
-    file = tmp_path / "unordered.py"
+@pytest.mark.parametrize("ordered", [False, True], ids=["unordered", "ordered"])
+def test_check_order(tmp_path: Path, *, ordered: bool) -> None:
+    """Check without rewriting, then fix and verify the subsequent check succeeds."""
+    file = tmp_path / "example.py"
     code = """def zebra(): pass
 
 def alpha(): pass
 """
+    if ordered:
+        code = """def alpha(): pass
+
+def zebra(): pass
+"""
     file.write_text(code, encoding="utf-8")
 
-    with pytest.raises(typer.Exit) as exc_info:
-        check_order([file])
+    if ordered:
+        assert check_order(iter([file])) is None
+    else:
+        with pytest.raises(typer.Exit) as exc_info:
+            check_order(iter([file]))
+        assert exc_info.value.exit_code == 1
 
-    assert exc_info.value.exit_code == 1
     assert file.read_text(encoding="utf-8") == code
+
+    if ordered:
+        assert check_order(iter([file]), fix=True) is None
+    else:
+        with pytest.raises(typer.Exit) as exc_info:
+            check_order(iter([file]), fix=True)
+        assert exc_info.value.exit_code == 1
+    assert (
+        file.read_text(encoding="utf-8")
+        == """def alpha(): pass
+
+def zebra(): pass
+"""
+    )
+    assert check_order(iter([file])) is None

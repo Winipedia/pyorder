@@ -1,4 +1,4 @@
-"""File-order checking for command-line use."""
+"""Command-line checks for Python source ordering."""
 
 from collections.abc import Iterable
 from pathlib import Path

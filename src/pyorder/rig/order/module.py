@@ -38,6 +38,8 @@ class Module(DependencySubclass):
     def check_order(self, file: Path, *, fix: bool = False) -> bool:
         """Check the order of Python source code in a file.
 
+        When `fix` is false and the file is out of order, show the diff.
+
         Args:
             file: Path to a Python source file.
             fix: Whether to also apply ordering changes.
@@ -79,7 +81,7 @@ class Module(DependencySubclass):
         )
 
     def is_ordered(self, unordered: str, ordered: str) -> bool:
-        """Return whether the source is correctly ordered.
+        """Return whether the source matches its expected ordering.
 
         Args:
             unordered: Source being checked.
@@ -91,7 +93,7 @@ class Module(DependencySubclass):
         return unordered == ordered
 
     def fix_order(self, file: Path, code: str) -> None:
-        """Write the fixed and ordered source to a file.
+        """Write replacement source to an existing file.
 
         Args:
             file: Existing destination file.
@@ -232,7 +234,7 @@ class Module(DependencySubclass):
         definition: AnyDefinition,
         definitions: tuple[AnyDefinition, ...],
     ) -> tuple["SupportsRichComparison", ...]:
-        """Return rule values in descending order of sorting priority.
+        """Return the policy values used to sort a definition.
 
         Args:
             definition: Definition to rank.
@@ -251,11 +253,10 @@ class Module(DependencySubclass):
         Callable[[AnyDefinition, tuple[AnyDefinition, ...]], "SupportsRichComparison"],
         ...,
     ]:
-        """Return the sort keys the main key consists of.
+        """Return the ordered policies used to rank definitions.
 
-        Each rule is a callable that takes a definition and the full set of definitions,
-        returning a value that supports rich comparison. The rules are applied in order,
-        with earlier rules having higher priority.
+        Each rule takes a definition and the full set of definitions, returning
+        a comparable value. Earlier rules have higher priority.
 
         Returns:
             Tuple of ranking rules represented as callables.
@@ -294,7 +295,7 @@ class Module(DependencySubclass):
         Only references matching supplied definition names contribute.
         Independent names have rank zero; duplicate names share a rank.
         Between distinct reference groups, users have lower ranks than their
-        targets, except that class header expressions and decorators precede
+        targets, except that definition-time dependencies precede
         their dependent definitions. Each group occupies its earliest layer
         after all incoming groups. Cycles share a rank.
 
@@ -326,43 +327,66 @@ class Module(DependencySubclass):
         }
 
     def definition_dependencies(self, definition: AnyDefinition) -> set[str]:
-        """Collect definitions that this definition depends on.
+        """Collect direct definition-time references, excluding annotations.
 
-        These are usages that need to exist before this definition can be valid.
-        e.g. decorators, parent classes or meta classes, etc...
+        Inspect decorators, defaults, class headers, and class-suite statements.
+        Ignore annotations, deferred function, lambda, and generator bodies,
+        and type-alias statements. Conditional branches are included without
+        resolving names across scopes or through calls.
 
         Args:
             definition: Definition whose dependencies to collect.
 
         Returns:
-            Names of definitions that this definition depends on.
+            Names referenced by the definition-time expressions inspected.
         """
-        expressions: list[ast.expr] = []
-        expressions.extend(definition.decorator_list)
-        if isinstance(definition, ast.ClassDef):
-            expressions.extend(definition.bases)
-            expressions.extend(keyword.value for keyword in definition.keywords)
-        else:
-            expressions.extend(definition.args.defaults)
-            expressions.extend(filter(None, definition.args.kw_defaults))
+        pending: list[ast.AST] = [definition]
+        dependencies: set[str] = set()
+        while pending:
+            node = pending.pop()
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                dependencies.add(node.id)
+            if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
+                dependencies.add(node.target.id)
+            pending.extend(self.definition_dependency_children(node))
+        return dependencies
 
-        return {
-            node.id
-            for expression in expressions
-            for node in ast.walk(expression)
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-        }
+    def definition_dependency_children(self, node: ast.AST) -> Iterator[ast.AST]:
+        """Yield AST children used to inspect definition-time evaluation.
+
+        Args:
+            node: Node whose evaluation boundaries determine its children.
+
+        Yields:
+            Children to inspect, excluding annotations and deferred bodies.
+        """
+        if isinstance(node, ast.ClassDef):
+            yield from node.decorator_list
+            yield from node.bases
+            yield from (keyword.value for keyword in node.keywords)
+            yield from node.body
+        elif isinstance(node, (*FUNC_DEFINITIONS, ast.Lambda)):
+            if isinstance(node, FUNC_DEFINITIONS):
+                yield from node.decorator_list
+            yield from node.args.defaults
+            yield from filter(None, node.args.kw_defaults)
+        elif isinstance(node, ast.GeneratorExp):
+            yield node.generators[0].iter
+        elif isinstance(node, ast.AnnAssign):
+            yield node.target
+            if node.value is not None:
+                yield node.value
+        elif not isinstance(node, ast.TypeAlias):
+            yield from ast.iter_child_nodes(node)
 
     def definition_references(self, definition: AnyDefinition) -> set[str]:
-        """Collect other definitions used by this definition.
-
-        Attempts to find and return all other definitions referenced by this definition.
+        """Collect loaded names appearing in a definition's syntax tree.
 
         Args:
             definition: Definition whose contents to inspect.
 
         Returns:
-            Referenced definitions by their names.
+            Loaded names found anywhere in the definition's syntax tree.
         """
         return {
             node.id
@@ -443,13 +467,15 @@ class Module(DependencySubclass):
 
         Returns:
             The decoded contents with line endings normalized to LF and any
-            UTF-8 byte-order mark removed.
+            leading UTF-8 byte-order mark removed.
         """
         encoding, _ = self.file_info(file)
         return file.read_text(encoding=encoding)
 
     def write_text(self, file: Path, code: str) -> None:
-        """Overwrite Python source using its existing encoding and newline style.
+        """Overwrite a file using its detected encoding and first-line newline.
+
+        If the first line has no line terminator, use LF.
 
         Args:
             file: Path to an existing Python source file.
@@ -459,13 +485,14 @@ class Module(DependencySubclass):
         file.write_text(code, encoding=encoding, newline=newline)
 
     def file_info(self, file: Path) -> tuple[str, str]:
-        """Detect a Python source file's encoding and newline style.
+        """Detect the source encoding and first-line newline sequence.
 
         Args:
             file: Path to an existing Python source file.
 
         Returns:
-            A pair containing the encoding name and newline sequence.
+            A pair of the encoding name and newline sequence. The sequence
+            defaults to LF if the first line has no terminator.
         """
         with tokenize.open(file) as f:
             f.readline()

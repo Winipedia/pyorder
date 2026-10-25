@@ -1,1 +1,1 @@
-"""Subclass integrations for Python source ordering."""
+"""Project-specific integrations with pyrig-runtime."""

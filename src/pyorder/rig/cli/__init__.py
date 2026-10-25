@@ -1,1 +1,1 @@
-"""Command-line interface for Python source ordering."""
+"""Project-specific command-line support for Python source ordering."""
