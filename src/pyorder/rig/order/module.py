@@ -337,15 +337,18 @@ class Module(DependencySubclass):
         Returns:
             Names of definitions that this definition depends on.
         """
-        bases = definition.bases if isinstance(definition, ast.ClassDef) else ()
-        keywords = (
-            tuple(keyword.value for keyword in definition.keywords)
-            if isinstance(definition, ast.ClassDef)
-            else ()
-        )
+        expressions: list[ast.expr] = []
+        expressions.extend(definition.decorator_list)
+        if isinstance(definition, ast.ClassDef):
+            expressions.extend(definition.bases)
+            expressions.extend(keyword.value for keyword in definition.keywords)
+        else:
+            expressions.extend(definition.args.defaults)
+            expressions.extend(filter(None, definition.args.kw_defaults))
+
         return {
             node.id
-            for expression in (*definition.decorator_list, *bases, *keywords)
+            for expression in expressions
             for node in ast.walk(expression)
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
         }
