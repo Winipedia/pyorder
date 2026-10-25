@@ -898,8 +898,8 @@ VALUE = 1
             pytest.param(b"# coding: unknown-encoding\n", id="unknown-encoding"),
             pytest.param(b"# invalid utf8: \xff\n", id="undecodable-source"),
             pytest.param(
-                b"# coding: cp1252\r# some-comment\xe9\r",
-                id="tokenize-rejects-non-utf8-cr-only-source",
+                b"\xef\xbb\xbf# coding: cp1252\n",
+                id="bom-encoding-conflict",
             ),
         ],
     )
