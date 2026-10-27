@@ -261,7 +261,7 @@ def alpha(): pass
 """
         definitions = tuple(Module.I.definitions(ast.parse(code)))
 
-        ordered = Module.I.order_definitions(definitions)
+        ordered = Module.I.order_definitions(definitions, Module.I.definition_ranks())
 
         assert [definition.name for definition in ordered] == [
             "alpha",
@@ -277,16 +277,20 @@ def _helper(): pass
 """
         definitions = tuple(Module.I.definitions(ast.parse(code)))
 
-        assert Module.I.definition_sort_key(definitions[1], definitions) == (
+        assert Module.I.definition_sort_key(
+            definitions[1],
+            definitions,
+            Module.I.definition_ranks(),
+        ) == (
             1,
             0,
             1,
             "_helper",
         )
 
-    def test_definition_sort_keys(self) -> None:
+    def test_definition_ranks(self) -> None:
         """Expose policy callables in descending priority order."""
-        assert Module.I.definition_sort_keys() == (
+        assert Module.I.definition_ranks() == (
             Module.I.definition_reference_rank,
             Module.I.definition_kind_rank,
             Module.I.definition_visibility_rank,

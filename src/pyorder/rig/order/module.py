@@ -127,7 +127,11 @@ class Module(DependencySubclass):
             Source with reordered definitions according to the ordering policies.
         """
         definitions = tuple(self.definitions(ast.parse(code)))
-        return self.reorder_code(code, definitions, self.order_definitions(definitions))
+        return self.reorder_code(
+            code,
+            definitions,
+            self.order_definitions(definitions, self.definition_ranks()),
+        )
 
     def reorder_code(
         self,
@@ -211,18 +215,30 @@ class Module(DependencySubclass):
     def order_definitions(
         self,
         definitions: tuple[AnyDefinition, ...],
+        ranks: tuple[
+            Callable[
+                [AnyDefinition, tuple[AnyDefinition, ...]],
+                "SupportsRichComparison",
+            ],
+            ...,
+        ],
     ) -> list[AnyDefinition]:
         """Return definitions in stable, ascending policy-key order.
 
         Args:
             definitions: Definitions to sort together.
+            ranks: Ranking rules applied in tuple order.
 
         Returns:
             A sorted list retaining original order when keys compare equal.
         """
 
         def sort_key(definition: AnyDefinition) -> tuple["SupportsRichComparison", ...]:
-            return self.definition_sort_key(definition, definitions)
+            return self.definition_sort_key(
+                definition,
+                definitions,
+                ranks,
+            )
 
         return sorted(
             definitions,
@@ -233,21 +249,27 @@ class Module(DependencySubclass):
         self,
         definition: AnyDefinition,
         definitions: tuple[AnyDefinition, ...],
+        ranks: tuple[
+            Callable[
+                [AnyDefinition, tuple[AnyDefinition, ...]],
+                "SupportsRichComparison",
+            ],
+            ...,
+        ],
     ) -> tuple["SupportsRichComparison", ...]:
         """Return the policy values used to sort a definition.
 
         Args:
             definition: Definition to rank.
             definitions: All definitions participating in the sort.
+            ranks: Ranking rules used to produce the key.
 
         Returns:
             A lexicographic key whose earlier values take precedence.
         """
-        return tuple(
-            key(definition, definitions) for key in self.definition_sort_keys()
-        )
+        return tuple(key(definition, definitions) for key in ranks)
 
-    def definition_sort_keys(
+    def definition_ranks(
         self,
     ) -> tuple[
         Callable[[AnyDefinition, tuple[AnyDefinition, ...]], "SupportsRichComparison"],
@@ -447,11 +469,11 @@ class Module(DependencySubclass):
         name = definition.name
         return len(name) - len(name.lstrip("_"))
 
-    def definitions(self, tree: ast.Module) -> Iterator[AnyDefinition]:
-        """Yield direct module-level function and class definitions.
+    def definitions(self, tree: ast.Module | AnyDefinition) -> Iterator[AnyDefinition]:
+        """Yield direct function and class definitions from an AST node.
 
         Args:
-            tree: Parsed module to inspect.
+            tree: Parsed module, function, or class to inspect.
 
         Yields:
             Synchronous functions, asynchronous functions, and classes in
