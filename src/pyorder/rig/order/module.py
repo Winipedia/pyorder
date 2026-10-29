@@ -3,11 +3,12 @@
 import ast
 import difflib
 import tokenize
+from abc import abstractmethod
 from collections.abc import Callable, Iterable, Iterator, KeysView
 from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 from uuid import uuid4
 
 import networkx as nx
@@ -31,6 +32,7 @@ class Module(DependencySubclass):
     """Readability-oriented ordering policies for Python source modules."""
 
     @classmethod
+    @override
     def discovery_module(cls) -> ModuleType:
         """Return the package that scopes subclass discovery."""
         return order
@@ -270,6 +272,7 @@ class Module(DependencySubclass):
             self.reverse_definition_kind_rank,
             self.constructor_method_rank,
             self.abstract_method_rank,
+            self.override_method_rank,
             self.magic_method_rank,
             self.classmethod_rank,
             self.cls_definition_reference_rank,
@@ -353,7 +356,7 @@ class Module(DependencySubclass):
         Returns:
             Zero if decorated with ``abstractmethod``, otherwise one.
         """
-        if "abstractmethod" in self.decorator_names(definition):
+        if abstractmethod.__name__ in self.decorator_names(definition):
             return 0
         return 1
 
@@ -371,7 +374,7 @@ class Module(DependencySubclass):
         Returns:
             Zero if decorated with ``classmethod``, otherwise one.
         """
-        if "classmethod" in self.decorator_names(definition):
+        if classmethod.__name__ in self.decorator_names(definition):
             return 0
         return 1
 
@@ -412,7 +415,12 @@ class Module(DependencySubclass):
             ``__init__``, and three otherwise.
         """
         name = definition.name
-        return ("__init_subclass__", "__new__", "__init__", name).index(name)
+        return (
+            object.__init_subclass__.__name__,
+            object.__new__.__name__,
+            object.__init__.__name__,
+            name,
+        ).index(name)
 
     def magic_method_rank(
         self,
@@ -486,6 +494,24 @@ class Module(DependencySubclass):
             definitions,
             key=sort_key,
         )
+
+    def override_method_rank(
+        self,
+        definition: AnyDefinition,
+        _definitions: tuple[AnyDefinition, ...],
+    ) -> "SupportsRichComparison":
+        """Rank explicitly overridden methods before other definitions.
+
+        Args:
+            definition: Definition whose decorators determine the rank.
+            _definitions: Other definitions; not used by this rule.
+
+        Returns:
+            Zero if decorated with ``override``, otherwise one.
+        """
+        if override.__name__ in self.decorator_names(definition):
+            return 0
+        return 1
 
     def reorder_code(
         self,

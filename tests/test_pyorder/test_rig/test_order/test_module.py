@@ -157,6 +157,7 @@ def method(self, value=default): deferred()
             Module.I.reverse_definition_kind_rank,
             Module.I.constructor_method_rank,
             Module.I.abstract_method_rank,
+            Module.I.override_method_rank,
             Module.I.magic_method_rank,
             Module.I.classmethod_rank,
             Module.I.cls_definition_reference_rank,
@@ -1616,6 +1617,45 @@ def decorate(value):
         assert Module.I.order_code(code) == expected
         assert Module.I.order_code(expected) == expected
 
+    def test_order_code_override_priority(self) -> None:
+        """Place overrides after abstract methods and before ordinary methods."""
+        code = """class Example:
+    def alpha(self): return self.zebra()
+
+    @classmethod
+    def build(cls): pass
+
+    def __repr__(self): pass
+
+    @override
+    def zebra(self): return self.helper()
+
+    @abstractmethod
+    def required(self): ...
+
+    @override
+    def __init__(self): pass
+
+    class Nested: pass
+
+    def helper(self): pass
+"""
+        ordered = Module.I.order_code(code)
+        cls = next(Module.I.classes(ast.parse(ordered)))
+
+        assert [definition.name for definition in Module.I.definitions(cls)] == [
+            "Nested",
+            "__init__",
+            "required",
+            "zebra",
+            "__repr__",
+            "build",
+            "alpha",
+            "helper",
+        ]
+        assert Module.I.order_code(ordered) == ordered
+        compile(ordered, "<ordered>", "exec")
+
     def test_order_code_stacked_decorators(self) -> None:
         """Order decorator dependencies without changing decorator application."""
         code = """@first
@@ -1666,6 +1706,53 @@ def alpha(): pass
             "_hidden",
             "Example",
         ]
+
+    @pytest.mark.parametrize(
+        ("code", "expected"),
+        [
+            pytest.param(
+                "@override\ndef run(self): pass",
+                0,
+                id="name",
+            ),
+            pytest.param(
+                "@typing.override\ndef run(self): pass",
+                0,
+                id="typing-attribute",
+            ),
+            pytest.param(
+                "@typing_extensions.override\ndef run(self): pass",
+                0,
+                id="typing-extensions-attribute",
+            ),
+            pytest.param(
+                "@classmethod\n@override\ndef run(cls): pass",
+                0,
+                id="stacked",
+            ),
+            pytest.param(
+                "@override\nasync def run(self): pass",
+                0,
+                id="async",
+            ),
+            pytest.param("def run(self): pass", 1, id="undecorated"),
+            pytest.param(
+                "@abstractmethod\ndef run(self): ...",
+                1,
+                id="other-decorator",
+            ),
+            pytest.param(
+                "@override()\ndef run(self): pass",
+                1,
+                id="called-decorator-ignored",
+            ),
+        ],
+    )
+    def test_override_method_rank(self, code: str, expected: int) -> None:
+        """Recognize override decorators using the shared decorator collector."""
+        definition = next(Module.I.definitions(ast.parse(code)))
+
+        assert Module.I.override_method_rank(definition, ()) == expected
 
     @pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
     @pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "cp1252"])
