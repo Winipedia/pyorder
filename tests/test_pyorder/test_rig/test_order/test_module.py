@@ -810,6 +810,31 @@ def second(): first()
                 id="self-reference",
             ),
             pytest.param(
+                """class Zebra: pass
+def alpha(value=Zebra): return helper()
+def helper(): return Zebra
+""",
+                {"Zebra": 0, "helper": 0, "alpha": 1},
+                id="dependency-in-reference-cycle",
+            ),
+            pytest.param(
+                """def main(): return alpha()
+class Zebra: pass
+def alpha(value=Zebra): return helper(), leaf()
+def helper(): return Zebra
+def leaf(): pass
+""",
+                {"main": 0, "Zebra": 0, "helper": 0, "alpha": 1, "leaf": 2},
+                id="mixed-cycle-retains-external-edges",
+            ),
+            pytest.param(
+                """def alpha(value=zebra): pass
+def zebra(value=alpha): pass
+""",
+                {"alpha": 0, "zebra": 0},
+                id="unresolvable-dependency-cycle",
+            ),
+            pytest.param(
                 """def main(): second(); first()
 def first(): second()
 def second(): first(); helper()
@@ -1609,6 +1634,73 @@ class Child(metaclass=Meta): pass
 
         assert Module.I.order_code(code) == expected
         assert Module.I.order_code(expected) == expected
+
+    @pytest.mark.parametrize(
+        ("code", "expected"),
+        [
+            pytest.param(
+                """class Zebra: pass
+
+def alpha(value=Zebra): return helper()
+
+def helper(): return Zebra
+""",
+                """def helper(): return Zebra
+
+class Zebra: pass
+
+def alpha(value=Zebra): return helper()
+""",
+                id="default-dependency",
+            ),
+            pytest.param(
+                """class Zebra:
+    def create(self): return helper()
+
+class Alpha(Zebra): pass
+
+def helper(): return Alpha()
+""",
+                """class Zebra:
+    def create(self): return helper()
+
+def helper(): return Alpha()
+
+class Alpha(Zebra): pass
+""",
+                id="inheritance-dependency",
+            ),
+            pytest.param(
+                """class Example:
+    def zebra(self): pass
+
+    def alpha(self, value=zebra): return self.helper()
+
+    def helper(self): return self.zebra()
+""",
+                """class Example:
+    def helper(self): return self.zebra()
+
+    def zebra(self): pass
+
+    def alpha(self, value=zebra): return self.helper()
+""",
+                id="method-default-dependency",
+            ),
+        ],
+    )
+    def test_order_code_dependency_in_reference_cycle(
+        self,
+        code: str,
+        expected: str,
+    ) -> None:
+        """Preserve executable, idempotent ordering despite mixed cycles."""
+        ordered = Module.I.order_code(code)
+
+        assert ordered == expected
+        assert Module.I.order_code(ordered) == ordered
+        namespace: dict[str, object] = {}
+        exec(compile(ordered, "<ordered>", "exec"), namespace)  # noqa: S102
 
     @pytest.mark.parametrize("func_kind", ["def", "async def"])
     def test_order_code_func_decorator(self, func_kind: str) -> None:

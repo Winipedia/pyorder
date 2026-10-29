@@ -48,8 +48,9 @@ class Module(DependencySubclass):
         """Group definition names into top-down reference layers.
 
         Users precede their references, but definition-time dependencies precede
-        their users. Only names in ``definitions`` contribute. Cycles share a
-        rank, so ordering constraints within them are not enforced.
+        their users. Only names in ``definitions`` contribute. Within cycles
+        containing dependencies, discard internal reference-only edges.
+        Reference-only cycles and unavoidable dependency cycles share a rank.
 
         Args:
             definitions: Definitions to rank together.
@@ -63,12 +64,18 @@ class Module(DependencySubclass):
         names = {definition.name for definition in definitions}
         graph = nx.DiGraph()
         graph.add_nodes_from(names)
+        dependency_edges = set()
         for definition in definitions:
             used = references(definition) & names
             needed = dependencies(definition) & names
             graph.add_edges_from((definition.name, name) for name in used - needed)
-            graph.add_edges_from((name, definition.name) for name in needed)
+            dependency_edges.update((name, definition.name) for name in needed)
+        graph.add_edges_from(dependency_edges)
 
+        for component in tuple(nx.strongly_connected_components(graph)):
+            edges = set(graph.subgraph(component).edges)
+            if edges & dependency_edges:
+                graph.remove_edges_from(edges - dependency_edges)
         condensed = nx.condensation(graph)
         return {
             name: rank
