@@ -591,15 +591,14 @@ class Module(DependencySubclass):
         return self.definition_dependencies(definition)
 
     def cls_definition_references(self, definition: AnyDefinition) -> KeysView[str]:
-        """Collect attributes a method loads from its first parameter.
+        """Collect attributes a method loads from its first parameter or instance.
 
         Args:
             definition: Class-body definition whose contents to inspect.
 
         Returns:
-            Attribute names read as ``receiver.name``, where the receiver is the
-            first positional parameter. Empty for classes and methods without
-            positional parameters.
+            Attribute names read directly from the first positional parameter,
+            from a call to it, or from a name assigned that call's result.
         """
         if not isinstance(definition, FUNC_DEFINITIONS):
             return dict.fromkeys(()).keys()
@@ -607,13 +606,32 @@ class Module(DependencySubclass):
             (arg.arg for arg in (*definition.args.posonlyargs, *definition.args.args)),
             None,
         )
+        instances = {
+            target.id
+            for node in ast.walk(definition)
+            if isinstance(node, (ast.Assign, ast.AnnAssign))
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Name)
+            and node.value.func.id == receiver
+            for target in (
+                node.targets if isinstance(node, ast.Assign) else (node.target,)
+            )
+            if isinstance(target, ast.Name)
+        }
+        receivers = instances | {receiver}
         return dict.fromkeys(
             node.attr
             for node in ast.walk(definition)
             if isinstance(node, ast.Attribute)
             and isinstance(node.ctx, ast.Load)
-            and isinstance(node.value, ast.Name)
-            and node.value.id == receiver
+            and (
+                (isinstance(node.value, ast.Name) and node.value.id in receivers)
+                or (
+                    isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == receiver
+                )
+            )
         ).keys()
 
     def decorator_names(self, definition: AnyDefinition) -> Iterator[str]:

@@ -214,6 +214,20 @@ def method(cls): cls.helper()""",
                 id="cls-receiver",
             ),
             pytest.param(
+                """@classmethod
+def method(cls): cls().helper()""",
+                {"helper"},
+                id="constructed-cls-receiver",
+            ),
+            pytest.param(
+                """@classmethod
+def method(cls):
+    instance = cls()
+    instance.helper()""",
+                {"helper"},
+                id="assigned-constructed-cls-receiver",
+            ),
+            pytest.param(
                 "def method(self, /): self.helper()",
                 {"helper"},
                 id="positional-only-receiver",
