@@ -3,7 +3,7 @@
 import ast
 import difflib
 import tokenize
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, KeysView
 from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
@@ -40,26 +40,23 @@ class Module(DependencySubclass):
     def definition_reference_ranks(
         cls,
         definitions: tuple[AnyDefinition, ...],
-        references: Callable[[AnyDefinition], set[str]],
-        dependencies: Callable[[AnyDefinition], set[str]],
+        references: Callable[[AnyDefinition], KeysView[str]],
+        dependencies: Callable[[AnyDefinition], KeysView[str]],
     ) -> dict[str, int]:
-        """Rank names in reference layers, reversing dependency references.
+        """Group definition names into top-down reference layers.
 
-        Only references matching supplied definition names contribute.
-        Independent names have rank zero; duplicate names share a rank.
-        Between distinct reference groups, users have lower ranks than their
-        targets, except that definition-time dependencies precede
-        their dependent definitions. Each group occupies its earliest layer
-        after all incoming groups. Cycles share a rank.
+        Users precede their references, but definition-time dependencies precede
+        their users. Only names in ``definitions`` contribute. Cycles share a
+        rank, so ordering constraints within them are not enforced.
 
         Args:
-            definitions: Definitions whose names and references establish ranks.
-            references: Function to extract references from a definition.
-            dependencies: Function to extract dependencies from a definition.
+            definitions: Definitions to rank together.
+            references: Collector of names referenced by a definition.
+            dependencies: Collector of names needed when a definition is created.
 
         Returns:
-            A name-to-rank mapping. Treat the cached result as read-only;
-            changing references within the same nodes does not invalidate it.
+            Name-to-layer mapping, starting at zero. Lower layers come first;
+            names in the same layer tie. Treat the cached mapping as read-only.
         """
         names = {definition.name for definition in definitions}
         graph = nx.DiGraph()
@@ -563,11 +560,11 @@ class Module(DependencySubclass):
             self.definition_name_rank,
         )
 
-    def cls_definition_dependencies(self, definition: AnyDefinition) -> set[str]:
+    def cls_definition_dependencies(self, definition: AnyDefinition) -> KeysView[str]:
         """Return definition-time dependencies for a class-body definition."""
         return self.definition_dependencies(definition)
 
-    def cls_definition_references(self, definition: AnyDefinition) -> set[str]:
+    def cls_definition_references(self, definition: AnyDefinition) -> KeysView[str]:
         """Collect attributes a method loads from its first parameter.
 
         Args:
@@ -579,21 +576,21 @@ class Module(DependencySubclass):
             positional parameters.
         """
         if not isinstance(definition, FUNC_DEFINITIONS):
-            return set()
+            return dict.fromkeys(()).keys()
         receiver = next(
             (arg.arg for arg in (*definition.args.posonlyargs, *definition.args.args)),
             None,
         )
-        return {
+        return dict.fromkeys(
             node.attr
             for node in ast.walk(definition)
             if isinstance(node, ast.Attribute)
             and isinstance(node.ctx, ast.Load)
             and isinstance(node.value, ast.Name)
             and node.value.id == receiver
-        }
+        ).keys()
 
-    def decorator_names(self, definition: AnyDefinition) -> set[str]:
+    def decorator_names(self, definition: AnyDefinition) -> Iterator[str]:
         """Return the final names of plain name and attribute decorators.
 
         Called decorators and other expressions are ignored.
@@ -604,11 +601,11 @@ class Module(DependencySubclass):
         Returns:
             Names such as ``name`` for ``@name`` and ``attr`` for ``@obj.attr``.
         """
-        return {
+        return (
             decorator.id if isinstance(decorator, ast.Name) else decorator.attr
             for decorator in definition.decorator_list
             if isinstance(decorator, (ast.Name, ast.Attribute))
-        }
+        )
 
     def definition_kind_rank(
         self,
@@ -648,8 +645,8 @@ class Module(DependencySubclass):
         self,
         definition: AnyDefinition,
         definitions: tuple[AnyDefinition, ...],
-        references: Callable[[AnyDefinition], set[str]],
-        dependencies: Callable[[AnyDefinition], set[str]],
+        references: Callable[[AnyDefinition], KeysView[str]],
+        dependencies: Callable[[AnyDefinition], KeysView[str]],
     ) -> int:
         """Return the reference-layer rank associated with a definition's name.
 
@@ -741,11 +738,14 @@ class Module(DependencySubclass):
             raise LookupError(msg)
         return source
 
-    def module_definition_dependencies(self, definition: AnyDefinition) -> set[str]:
+    def module_definition_dependencies(
+        self,
+        definition: AnyDefinition,
+    ) -> KeysView[str]:
         """Return definition-time dependencies for a module-level definition."""
         return self.definition_dependencies(definition)
 
-    def module_definition_references(self, definition: AnyDefinition) -> set[str]:
+    def module_definition_references(self, definition: AnyDefinition) -> KeysView[str]:
         """Collect names loaded anywhere in a definition's syntax tree.
 
         Args:
@@ -754,11 +754,11 @@ class Module(DependencySubclass):
         Returns:
             Loaded names found anywhere in the definition's syntax tree.
         """
-        return {
+        return dict.fromkeys(
             node.id
             for node in ast.walk(definition)
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-        }
+        ).keys()
 
     def source_placeholder(self) -> str:
         """Return a random UUID4 hex token for use as a source placeholder.
@@ -768,7 +768,7 @@ class Module(DependencySubclass):
         """
         return uuid4().hex
 
-    def definition_dependencies(self, definition: AnyDefinition) -> set[str]:
+    def definition_dependencies(self, definition: AnyDefinition) -> KeysView[str]:
         """Collect definition-time names, excluding annotations.
 
         Inspect decorators, defaults, class headers, and class-suite statements.
@@ -783,15 +783,15 @@ class Module(DependencySubclass):
             Names referenced by the definition-time expressions inspected.
         """
         pending: list[ast.AST] = [definition]
-        dependencies: set[str] = set()
+        dependencies: dict[str, None] = {}
         while pending:
             node = pending.pop()
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-                dependencies.add(node.id)
+                dependencies[node.id] = None
             if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
-                dependencies.add(node.target.id)
+                dependencies[node.target.id] = None
             pending.extend(self.definition_dependency_children(node))
-        return dependencies
+        return dependencies.keys()
 
     def definition_dependency_children(self, node: ast.AST) -> Iterator[ast.AST]:
         """Yield AST children used to inspect definition-time evaluation.

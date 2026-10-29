@@ -1,6 +1,7 @@
 """Mirror Module's API with focused policy, traversal and file-I/O tests."""
 
 import ast
+from collections.abc import KeysView
 from pathlib import Path
 from uuid import UUID
 
@@ -295,7 +296,19 @@ def method(cls): cls.helper()""",
         """Collect attributes read directly through the receiver parameter."""
         definition = next(Module.I.definitions(ast.parse(code)))
 
-        assert Module.I.cls_definition_references(definition) == expected
+        assert set(Module.I.cls_definition_references(definition)) == expected
+
+    def test_cls_definition_references_order(self) -> None:
+        """Preserve first-seen receiver references and remove duplicates."""
+        definition = ast.parse(
+            "def main(self): self.second(); self.first(); self.second()",
+        ).body[0]
+        assert isinstance(definition, ast.FunctionDef)
+
+        assert tuple(Module.I.cls_definition_references(definition)) == (
+            "second",
+            "first",
+        )
 
     @pytest.mark.parametrize(
         ("name", "expected"),
@@ -344,7 +357,7 @@ class Example: pass""",
         """Return the final names of plain name and attribute decorators."""
         definition = next(Module.I.definitions(ast.parse(code)))
 
-        assert Module.I.decorator_names(definition) == expected
+        assert set(Module.I.decorator_names(definition)) == expected
 
     @pytest.mark.parametrize(
         ("code", "expected"),
@@ -704,11 +717,11 @@ def helper(): pass
         main, helper = Module.I.definitions(ast.parse(code))
         definitions = (main, helper)
 
-        def references(definition: ast.AST) -> set[str]:
-            return {"helper"} if definition is main else set()
+        def references(definition: ast.AST) -> KeysView[str]:
+            return dict.fromkeys(("helper",) if definition is main else ()).keys()
 
-        def dependencies(_definition: ast.AST) -> set[str]:
-            return set()
+        def dependencies(_definition: ast.AST) -> KeysView[str]:
+            return dict.fromkeys(()).keys()
 
         assert [
             Module.I.definition_reference_rank(
@@ -725,13 +738,48 @@ def helper(): pass
         [
             pytest.param("", {}, id="empty"),
             pytest.param(
-                """def main(): helper()
-def helper(): leaf()
-def leaf(): pass
-def independent(): pass
+                """def first(): pass
+def second(): pass
+def main(): second(); first(); second()
 """,
-                {"main": 0, "helper": 1, "leaf": 2, "independent": 0},
-                id="reference-layers",
+                {"main": 0, "second": 1, "first": 1},
+                id="sibling-references-share-layer",
+            ),
+            pytest.param(
+                """def main(): load(); save()
+def save(): serialize()
+def serialize(): pass
+def load(): parse()
+def parse(): pass
+""",
+                {"main": 0, "load": 1, "save": 1, "parse": 2, "serialize": 2},
+                id="breadth-first-layers",
+            ),
+            pytest.param(
+                """def shared(): pass
+def first(): shared()
+def second(): shared()
+""",
+                {"first": 0, "second": 0, "shared": 1},
+                id="shared-target-after-all-users",
+            ),
+            pytest.param(
+                """def main(): first(); second(); shared()
+def first(): shared()
+def second(): pass
+def shared(): pass
+""",
+                {"main": 0, "first": 1, "second": 1, "shared": 2},
+                id="shared-target-after-last-user-layer",
+            ),
+            pytest.param(
+                """class Alpha: pass
+def _private(): pass
+def zeta(): pass
+def alpha(): pass
+""",
+                {"alpha": 0, "zeta": 0, "_private": 0, "Alpha": 0},
+                id="unreferenced-definitions-tie",
             ),
             pytest.param(
                 """def first(): second()
@@ -745,6 +793,15 @@ def second(): first()
 """,
                 {"recursive": 0},
                 id="self-reference",
+            ),
+            pytest.param(
+                """def main(): second(); first()
+def first(): second()
+def second(): first(); helper()
+def helper(): pass
+""",
+                {"main": 0, "first": 1, "second": 1, "helper": 2},
+                id="cycle-with-caller-and-helper",
             ),
             pytest.param(
                 """def example(): external()
@@ -767,7 +824,7 @@ def helper(): pass
         code: str,
         expected: dict[str, int],
     ) -> None:
-        """Rank reference layers deterministically, including cycles and duplicates."""
+        """Rank reference layers, including cycles and duplicate names."""
         definitions = tuple(Module.I.definitions(ast.parse(code)))
 
         assert (
@@ -800,9 +857,9 @@ class ExternalChild(external.Base): pass
             "main": 0,
             "Base": 0,
             "Child": 1,
+            "ExternalChild": 0,
             "Factory": 0,
             "Item": 1,
-            "ExternalChild": 0,
         }
 
     def test_definition_sort_key(self) -> None:
@@ -1049,7 +1106,20 @@ def helper(): pass
         """Collect syntactic loads, including deferred bodies and annotation names."""
         definition = next(Module.I.definitions(ast.parse(code)))
 
-        assert Module.I.module_definition_references(definition) == expected
+        assert set(Module.I.module_definition_references(definition)) == expected
+
+    def test_module_definition_references_order(self) -> None:
+        """Preserve first-seen loaded names and remove duplicates."""
+        definition = next(
+            Module.I.definitions(
+                ast.parse("def main(): second(); first(); second()"),
+            ),
+        )
+
+        assert tuple(Module.I.module_definition_references(definition)) == (
+            "second",
+            "first",
+        )
 
     @pytest.mark.parametrize(
         ("code", "expected"),
@@ -1076,6 +1146,38 @@ def helper(): Example()
 class Example: pass
 """,
                 id="user-first-reference-chain",
+            ),
+            pytest.param(
+                """def first(): pass
+
+def second(): pass
+
+def main(): second(); first()
+""",
+                """def main(): second(); first()
+
+def first(): pass
+
+def second(): pass
+""",
+                id="module-reference-layer-name-tie-breaker",
+            ),
+            pytest.param(
+                """class Example:
+    def first(self): pass
+
+    def second(self): pass
+
+    def main(self): self.second(); self.first()
+""",
+                """class Example:
+    def main(self): self.second(); self.first()
+
+    def first(self): pass
+
+    def second(self): pass
+""",
+                id="method-reference-layer-name-tie-breaker",
             ),
             pytest.param(
                 """class Alpha(Zebra): pass
@@ -1235,6 +1337,31 @@ class Zebra:
     def zebra(self): pass
 """,
                 id="cls-method-reference-chain",
+            ),
+            pytest.param(
+                """class Example:
+    def _save(self): return self._serialize()
+
+    def _serialize(self): pass
+
+    def run(self): return self._load(), self._save()
+
+    def _parse(self): pass
+
+    def _load(self): return self._parse()
+""",
+                """class Example:
+    def run(self): return self._load(), self._save()
+
+    def _load(self): return self._parse()
+
+    def _save(self): return self._serialize()
+
+    def _parse(self): pass
+
+    def _serialize(self): pass
+""",
+                id="cls-method-branches-by-layer",
             ),
             pytest.param(
                 """class Example:
