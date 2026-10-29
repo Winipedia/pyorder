@@ -3,7 +3,6 @@
 import ast
 from collections.abc import KeysView
 from pathlib import Path
-from uuid import UUID
 
 import pytest
 
@@ -94,6 +93,56 @@ def zebra(): pass
             )
         else:
             assert output == ""
+
+    def test_check_order_fix_preserves_matching_docstring(self, tmp_path: Path) -> None:
+        """Fix real definition slots without changing identical example text."""
+        file = tmp_path / "example.py"
+        code = '''"""Example:
+def zebra(): pass
+"""
+def zebra(): pass
+
+def alpha(): pass
+
+class First:
+    @(
+        decorate
+    )
+    def zebra(self): pass
+
+    def alpha(self): pass
+
+class Second:
+    def zebra(self): pass
+
+    def alpha(self): pass
+'''
+        expected = '''"""Example:
+def zebra(): pass
+"""
+def alpha(): pass
+
+def zebra(): pass
+
+class First:
+    def alpha(self): pass
+
+    @(
+        decorate
+    )
+    def zebra(self): pass
+
+class Second:
+    def alpha(self): pass
+
+    def zebra(self): pass
+'''
+        file.write_text(code, encoding="utf-8")
+
+        assert not Module.I.check_order(file, fix=True)
+        assert file.read_text(encoding="utf-8") == expected
+        assert Module.I.check_order(file, fix=True)
+        compile(expected, "<ordered>", "exec")
 
     def test_classes(self) -> None:
         """Yield direct classes without descending into functions or methods."""
@@ -1008,28 +1057,6 @@ def zebra(): pass
 
         assert file.read_text(encoding="utf-8") == ordered
 
-    def test_get_source_segment(self) -> None:
-        """Include decorators and support ordinary statement source segments."""
-        code = """@decorate
-def example():
-    pass
-"""
-        definition = ast.parse(code).body[0]
-
-        assert Module.I.get_source_segment(code, definition) == code.rstrip("\n")
-
-        assignment_code = "VALUE = 1"
-        assignment = ast.parse(assignment_code).body[0]
-
-        assert (
-            Module.I.get_source_segment(assignment_code, assignment) == assignment_code
-        )
-
-    def test_get_source_segment_missing_location(self) -> None:
-        """Reject nodes without source locations explicitly."""
-        with pytest.raises(LookupError, match="failed to get source segment"):
-            Module.I.get_source_segment("VALUE = 1", ast.Name(id="VALUE"))
-
     @pytest.mark.parametrize(
         ("unordered", "ordered", "expected"),
         [
@@ -1935,22 +1962,203 @@ class Second:
 
         assert Module.I.reorder_cls_definitions(code, ast.parse(code)) == expected
 
-    def test_reorder_code(self) -> None:
-        """Accept one-shot iterators and replace the selected definition slots."""
-        code = """def first(): pass
+    @pytest.mark.parametrize(
+        ("code", "expected"),
+        [
+            pytest.param(
+                """def first(): pass
 
 def second(): pass
-"""
-        expected = """def second(): pass
+""",
+                """def second(): pass
 
 def first(): pass
+""",
+                id="ordinary-definitions",
+            ),
+            pytest.param(
+                """def first():
+    return 1  # some comment
+
+def second():
+    return 2
+""",
+                """def second():
+    return 2
+
+def first():
+    return 1  # some comment
+""",
+                id="trailing-inline-comment",
+            ),
+            pytest.param(
+                '''"""def first(): pass"""
+def first(): pass
+def second(): pass
+''',
+                '''"""def first(): pass"""
+def second(): pass
+def first(): pass
+''',
+                id="identical-text-in-docstring",
+            ),
+            pytest.param(
+                """def first(): pass
+def first(): pass
+def second(): pass
+""",
+                """def second(): pass
+def first(): pass
+def first(): pass
+""",
+                id="duplicate-definitions",
+            ),
+            pytest.param(
+                '''"""calf\u00e9"""
+def first(): return "na\u00efve"
+def second(): pass
+''',
+                '''"""calf\u00e9"""
+def second(): pass
+def first(): return "na\u00efve"
+''',
+                id="utf8-offsets",
+            ),
+            pytest.param(
+                """@(
+    decorate
+)
+def first(): pass
+
+def second(): pass
+""",
+                """def second(): pass
+
+@(
+    decorate
+)
+def first(): pass
+""",
+                id="multiline-decorator",
+            ),
+            pytest.param(
+                """@(  # @ some comment after the opening parenthesis
+    # @ is not a decorator here
+    (
+        decorate
+    )
+)
+def first(): return 1  # attached comment
+
+def second(): return 2
+""",
+                """def second(): return 2
+
+@(  # @ some comment after the opening parenthesis
+    # @ is not a decorator here
+    (
+        decorate
+    )
+)
+def first(): return 1  # attached comment
+""",
+                id="nested-parentheses-and-decorator-comment",
+            ),
+            pytest.param(
+                '''@(
+    """text
+@inside_a_literal
 """
-        definitions = ast.parse(code).body
+)
+def first(): pass
+
+def second(): pass
+''',
+                '''def second(): pass
+
+@(
+    """text
+@inside_a_literal
+"""
+)
+def first(): pass
+''',
+                id="decorator-containing-multiline-literal",
+            ),
+            pytest.param(
+                """@decorate
+\fdef first(): pass
+
+def second(): pass
+""",
+                """def second(): pass
+
+@decorate
+\fdef first(): pass
+""",
+                id="decorated-definition-with-form-feed",
+            ),
+            pytest.param(
+                """@\\
+    decorate
+def first(): return "calf\u00e9"  # first comment
+
+def second(): return "\U0001f600"  # second comment""",
+                """def second(): return "\U0001f600"  # second comment
+
+@\\
+    decorate
+def first(): return "calf\u00e9"  # first comment""",
+                id="continued-decorator-comments-without-final-newline",
+            ),
+            pytest.param(
+                """@decorate
+@other
+def first(): pass
+def second(): pass
+""",
+                """def second(): pass
+@decorate
+@other
+def first(): pass
+""",
+                id="multiple-decorators",
+            ),
+            pytest.param(
+                """value = 1; other = 2
+""",
+                """other = 2; value = 1
+""",
+                id="same-line-statements",
+            ),
+            pytest.param(
+                """first(); second()
+""",
+                """second(); first()
+""",
+                id="same-line-function-calls",
+            ),
+        ],
+    )
+    @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
+    def test_reorder_code(self, code: str, expected: str, newline: str) -> None:
+        """Accept one-shot iterators and replace selected source slots."""
+        code = code.replace("\n", newline)
+        expected = expected.replace("\n", newline)
+        statements = ast.parse(code).body
+        if (
+            statements
+            and isinstance(statements[0], ast.Expr)
+            and isinstance(statements[0].value, ast.Constant)
+            and isinstance(statements[0].value.value, str)
+        ):
+            statements = statements[1:]
 
         assert (
-            Module.I.reorder_code(code, iter(definitions), reversed(definitions))
+            Module.I.reorder_code(code, iter(statements), reversed(statements))
             == expected
         )
+        compile(expected, "<ordered>", "exec")
 
     def test_reorder_definitions(self) -> None:
         """Use supplied definitions and ranks without moving other source."""
@@ -2026,11 +2234,37 @@ class Example: pass
             for definition in definitions
         ] == [0, 0, -1]
 
-    def test_source_placeholder(self) -> None:
-        """Produce a valid UUID hex placeholder."""
-        placeholder = Module.I.source_placeholder()
+    def test_source_span(self) -> None:
+        """Include decorators without mutating the node and support statements."""
+        code = """@decorate
+def example():
+    pass
+"""
+        definition = ast.parse(code).body[0]
+        original = ast.dump(definition, include_attributes=True)
 
-        assert UUID(placeholder).hex == placeholder
+        assert Module.I.source_span(code.encode("utf-8"), definition) == (
+            0,
+            len(code) - 1,
+        )
+        assert ast.dump(definition, include_attributes=True) == original
+
+        assignment_code = "VALUE = 1"
+        assignment = ast.parse(assignment_code).body[0]
+
+        assert Module.I.source_span(assignment_code.encode("utf-8"), assignment) == (
+            0,
+            len(assignment_code),
+        )
+
+    @pytest.mark.parametrize("attribute", ["end_lineno", "end_col_offset"])
+    def test_source_span_missing_location(self, attribute: str) -> None:
+        """Reject statements without end locations explicitly."""
+        statement = ast.parse("VALUE = 1").body[0]
+        setattr(statement, attribute, None)
+
+        with pytest.raises(LookupError, match="failed to get source span"):
+            Module.I.source_span(b"VALUE = 1", statement)
 
     def test_standard_definition_ranks(self) -> None:
         """Order ties by visibility, then name."""

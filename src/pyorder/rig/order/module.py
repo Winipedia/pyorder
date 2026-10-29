@@ -9,7 +9,6 @@ from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, override
-from uuid import uuid4
 
 import networkx as nx
 import typer
@@ -26,6 +25,8 @@ type AnyDefinition = AnyFuncDefinition | ast.ClassDef
 
 FUNC_DEFINITIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
 DEFINITIONS = (*FUNC_DEFINITIONS, ast.ClassDef)
+
+SOURCE_ENCODING = "utf-8"
 
 
 class Module(DependencySubclass):
@@ -523,13 +524,12 @@ class Module(DependencySubclass):
     def reorder_code(
         self,
         code: str,
-        unordered: Iterable[ast.AST],
-        ordered: Iterable[ast.AST],
+        unordered: Iterable[ast.stmt],
+        ordered: Iterable[ast.stmt],
     ) -> str:
         """Replace selected source segments with their requested ordering.
 
-        Segments are matched by their first textual occurrence, not their
-        location. Identical text elsewhere can therefore be replaced instead.
+        Compute each span once and replace from the end to keep offsets valid.
 
         Args:
             code: Original source from which the nodes were parsed.
@@ -539,27 +539,16 @@ class Module(DependencySubclass):
         Returns:
             Source with the selected segments replaced in the requested order.
         """
-        unordered_sources = tuple(self.get_source_segment(code, uo) for uo in unordered)
-        placeholders = tuple(self.source_placeholder() for _ in unordered_sources)
+        source = code.encode(SOURCE_ENCODING)
+        spans = {node: self.source_span(source, node) for node in unordered}
         ordered_sources = tuple(
-            self.get_source_segment(code, definition) for definition in ordered
+            source[start:end] for start, end in (spans[node] for node in ordered)
         )
-
-        for source, placeholder in zip(
-            unordered_sources,
-            placeholders,
-            strict=True,
+        for (start, end), replacement in reversed(
+            tuple(zip(spans.values(), ordered_sources, strict=True)),
         ):
-            code = code.replace(source, placeholder, 1)
-
-        for placeholder, source in zip(
-            placeholders,
-            ordered_sources,
-            strict=True,
-        ):
-            code = code.replace(placeholder, source, 1)
-
-        return code
+            source = source[:start] + replacement + source[end:]
+        return source.decode(SOURCE_ENCODING)
 
     def reverse_definition_kind_rank(
         self,
@@ -759,36 +748,6 @@ class Module(DependencySubclass):
         name = definition.name
         return len(name) - len(name.lstrip("_"))
 
-    def get_source_segment(
-        self,
-        code: str,
-        node: ast.AST,
-    ) -> str:
-        """Extract a node's source segment.
-
-        For definitions, updates `node.lineno` to the first decorator
-        expression's line. A decorator's opening syntax on an earlier line
-        is not included.
-
-        Args:
-            code: Source corresponding to the node's locations.
-            node: Node whose source segment is required.
-
-        Returns:
-            The selected source text, excluding surrounding comments.
-
-        Raises:
-            LookupError: If the node lacks locations needed for extraction.
-        """
-        if isinstance(node, DEFINITIONS):
-            node.lineno = next(iter(node.decorator_list), node).lineno
-
-        source = ast.get_source_segment(code, node)
-        if source is None:
-            msg = f"failed to get source segment {node=}"
-            raise LookupError(msg)
-        return source
-
     def module_definition_dependencies(
         self,
         definition: AnyDefinition,
@@ -811,13 +770,46 @@ class Module(DependencySubclass):
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
         ).keys()
 
-    def source_placeholder(self) -> str:
-        """Return a random UUID4 hex token for use as a source placeholder.
+    def source_span(
+        self,
+        source: bytes,
+        node: ast.stmt,
+    ) -> tuple[int, int]:
+        """Return a node's start and exclusive end as UTF-8 byte offsets.
+
+        Include decorators and final inline comments without modifying the node.
+
+        Args:
+            source: UTF-8 encoded source corresponding to the node's locations.
+            node: Parsed statement whose source segment is required.
 
         Returns:
-            A practically unique string for use as a placeholder in source code.
+            Byte offsets enclosing the node, including its final inline comment.
+
+        Raises:
+            LookupError: If the statement lacks end locations.
         """
-        return uuid4().hex
+        col_offset = node.col_offset
+        if (end_lineno := node.end_lineno) is None or (
+            end_col_offset := node.end_col_offset
+        ) is None:
+            msg = f"failed to get source span {node=}"
+            raise LookupError(msg)
+        lineno = node.lineno - 1
+        end_lineno = end_lineno - 1
+        lines = source.splitlines(keepends=True)
+        if isinstance(node, DEFINITIONS) and (decorator_list := node.decorator_list):
+            lineno = decorator_list[0].lineno - 1
+            while not lines[lineno].lstrip(b" \t\f").startswith(b"@"):
+                lineno -= 1
+            col_offset = lines[lineno].index(b"@")
+        end_line = lines[end_lineno].rstrip(b"\r\n")
+        if end_line[end_col_offset:].lstrip(b" \t\f").startswith(b"#"):
+            end_col_offset = len(end_line)
+        return (
+            sum(map(len, lines[:lineno])) + col_offset,
+            sum(map(len, lines[:end_lineno])) + end_col_offset,
+        )
 
     def definition_dependencies(self, definition: AnyDefinition) -> KeysView[str]:
         """Collect definition-time names, excluding annotations.
