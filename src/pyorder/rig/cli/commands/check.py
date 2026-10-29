@@ -16,7 +16,7 @@ def check_order(files: Iterable[Path], *, fix: bool = False) -> None:
         fix: Whether to apply ordering changes rather than only report them.
 
     Raises:
-        typer.Exit: If any file is not correctly ordered.
+        typer.Exit: If any file was out of order, even when ``fix`` is true.
     """
     if all(tuple(Module.I.check_order(file, fix=fix) for file in files)):
         return

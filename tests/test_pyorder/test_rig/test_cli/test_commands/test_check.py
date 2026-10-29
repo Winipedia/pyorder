@@ -10,7 +10,7 @@ from pyorder.rig.cli.commands.check import check_order
 
 @pytest.mark.parametrize("ordered", [False, True], ids=["unordered", "ordered"])
 def test_check_order(tmp_path: Path, *, ordered: bool) -> None:
-    """Check without rewriting, then fix and verify the subsequent check succeeds."""
+    """Report the original order, fix unordered code, and verify it then passes."""
     file = tmp_path / "example.py"
     code = """def zebra(): pass
 

@@ -34,7 +34,7 @@ def check(
         fix: Whether to apply ordering changes rather than only report them.
 
     Raises:
-        typer.Exit: If any file is not correctly ordered.
+        typer.Exit: If any file was out of order, even when ``fix`` is true.
     """
     from pyorder.rig.cli.commands.check import check_order  # noqa: PLC0415
 
