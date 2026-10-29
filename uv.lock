@@ -787,7 +787,7 @@ wheels = [
 
 [[package]]
 name = "pyorder"
-version = "0.11.9"
+version = "0.12.2"
 source = { editable = "." }
 dependencies = [
     { name = "networkx" },
