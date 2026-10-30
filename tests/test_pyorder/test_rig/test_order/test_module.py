@@ -1515,6 +1515,51 @@ class Zebra:
 """,
                 id="function-local-class-unchanged",
             ),
+            pytest.param(
+                """def first(): pass
+def second(): pass
+def main(): second(); first()  # some comment
+""",
+                """def main(): second(); first()  # some comment
+def first(): pass
+def second(): pass
+""",
+                id="semicolon-calls-with-comment",
+            ),
+            pytest.param(
+                """
+def main():
+    first()
+    second()
+def first(): pass
+def second(): pass
+""",
+                """
+def main():
+    first()
+    second()
+def first(): pass
+def second(): pass
+""",
+                id="correct-order-unchanged",
+            ),
+            pytest.param(
+                """
+def first(): pass
+def second(): pass
+def main(): first(); second()
+def first(): pass
+def second(): pass
+""",
+                """
+def main(): first(); second()
+def first(): pass
+def first(): pass
+def second(): pass
+def second(): pass
+""",
+                id="duplicate-definition",
+            ),
         ],
     )
     def test_order_code(self, code: str, expected: str) -> None:
