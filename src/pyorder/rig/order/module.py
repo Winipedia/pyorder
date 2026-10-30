@@ -281,7 +281,7 @@ class Module(DependencySubclass):
             self.constructor_method_rank,
             self.abstract_method_rank,
             self.override_method_rank,
-            self.magic_method_rank,
+            self.special_method_rank,
             self.classmethod_rank,
             self.cls_definition_reference_rank,
             *self.standard_definition_ranks(),
@@ -430,25 +430,6 @@ class Module(DependencySubclass):
             name,
         ).index(name)
 
-    def magic_method_rank(
-        self,
-        definition: AnyDefinition,
-        _definitions: tuple[AnyDefinition, ...],
-    ) -> "SupportsRichComparison":
-        """Rank dunder names before other definitions.
-
-        Args:
-            definition: Definition whose name determines the rank.
-            _definitions: Other definitions; not used by this rule.
-
-        Returns:
-            Zero if the name starts and ends with two underscores, otherwise one.
-        """
-        name = definition.name
-        if name.startswith("__") and name.endswith("__"):
-            return 0
-        return 1
-
     def module_definition_reference_rank(
         self,
         definition: AnyDefinition,
@@ -565,6 +546,25 @@ class Module(DependencySubclass):
             Minus one for classes and zero for functions.
         """
         return -self.definition_kind_rank(definition, definitions)
+
+    def special_method_rank(
+        self,
+        definition: AnyDefinition,
+        _definitions: tuple[AnyDefinition, ...],
+    ) -> "SupportsRichComparison":
+        """Rank dunder names before other definitions.
+
+        Args:
+            definition: Definition whose name determines the rank.
+            _definitions: Other definitions; not used by this rule.
+
+        Returns:
+            Zero if the name starts and ends with two underscores, otherwise one.
+        """
+        name = definition.name
+        if name.startswith("__") and name.endswith("__"):
+            return 0
+        return 1
 
     def standard_definition_ranks(
         self,

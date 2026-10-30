@@ -50,3 +50,88 @@
 > A Python source code ordering linter.
 
 ---
+
+## Overview
+
+`pyorder` is a development tool built on the `ast` library for ordering Python
+source code according to specified rules and conventions. Specifically, it is
+designed to order definitions within a Python module. It does not attempt to order
+everything in a source file, like attributes or statements outside of definitions.
+The only things it focuses on are definitions within a Python module.
+`pyorder` focuses on ordering Python code according to best practices regarding
+readability of Python code, e.g. things like callers appearing before callees.
+
+## Usage
+
+```bash
+# install pyorder as a development dependency
+uv add pyorder --dev
+# check Python files
+uv run pyorder path/to/your/file1.py path/to/your/file2.py
+# fix Python files
+uv run pyorder --fix path/to/your/file1.py path/to/your/file2.py
+```
+
+The `--fix` option will modify all files that are not ordered according to the rules.
+Although `pyorder` attempts to respect valid Python syntax, it does NOT guarantee
+valid Python syntax or that no logical errors will be introduced after reordering.
+It simply reorders the definitions according to the rules. Run `pyorder` without
+the `--fix` option first to see the diff output of files that would be modified.
+Please check all modified files after fixing to ensure that your code is correct.
+
+## What exactly is being ordered
+
+`pyorder` parses a given file as an abstract syntax tree (AST) and considers the
+following types of definitions within a Python module:
+
+- Module-level definitions, specifically instances of `ast.FunctionDef`, `ast.AsyncFunctionDef`
+and `ast.ClassDef`
+- Module-level class definitions, specifically instances of `ast.ClassDef`, `ast.FunctionDef`,
+and `ast.AsyncFunctionDef`
+
+## Ordering Rules
+
+`pyorder` enforces the rules on two levels, module-level definitions and
+class-level definitions of module-level classes.
+The listed rules below are applied as a sorting key in that priority order within
+each level of definitions.
+
+### Module-level definitions
+
+- callers-before-callees: a definition that calls another definition appears
+before that definition (excluded are hard dependencies that are needed at definition
+time, e.g. base classes, arg/kwargs defaults, or decorators).
+- functions-before-classes: functions should be defined before classes within
+the module.
+- visibility-ordering: public before private definitions (e.g.,
+`public`, `_private`, `__more_private`)
+- alphabetical-ordering: definitions are ordered alphabetically.
+
+### Class-level definitions
+
+- classes-before-methods: nested classes should be defined before methods.
+- constructor-first: Constructor methods (e.g., `__new__`, `__init__`) should be
+defined before other methods.
+- abstract-first: methods decorated with `@abstractmethod` should be defined
+before other methods.
+- overrides-first: methods decorated with `@override` should be defined before
+other methods.
+- special-methods-first: special methods (e.g., `__str__`, `__repr__`) should be
+defined before other methods.
+- classmethods-first: methods decorated with `@classmethod` should be defined
+before other methods.
+- callers-before-callees: a definition that calls another definition should be defined
+before that definition (excluded are hard dependencies that are needed at definition
+time, e.g. base classes, arg/kwargs defaults, or decorators).
+- visibility-ordering: public before private definitions (e.g., `public`,
+`_private`, `__more_private`) within the class.
+- alphabetical-ordering: definitions are ordered alphabetically within the class.
+
+## Customization
+
+`pyorder` does not support inline comments like `# noqa`. The missing support for
+inline comments is intentional and is part of this tool's philosophy of enforcing
+a consistent ordering of Python source code.However `pyorder` is built on [`pyrig-runtime`](https://github.com/Winipedia/pyrig-runtime).
+Therefore customization can be done by writing a plugin. [`pyrig`](https://github.com/Winipedia/pyrig)
+is another tool built on `pyrig-runtime` and describes [how to write a plugin](https://winipedia.github.io/pyrig/plugins/)
+based on the system of `pyrig-runtime` subclasses.

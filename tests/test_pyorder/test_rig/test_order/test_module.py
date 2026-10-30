@@ -207,7 +207,7 @@ def method(self, value=default): deferred()
             Module.I.constructor_method_rank,
             Module.I.abstract_method_rank,
             Module.I.override_method_rank,
-            Module.I.magic_method_rank,
+            Module.I.special_method_rank,
             Module.I.classmethod_rank,
             Module.I.cls_definition_reference_rank,
             Module.I.definition_visibility_rank,
@@ -1077,24 +1077,6 @@ def zebra(): pass
     def test_is_ordered(self, unordered: str, ordered: str, *, expected: bool) -> None:
         """Compare source exactly, including whitespace."""
         assert Module.I.is_ordered(unordered, ordered) is expected
-
-    @pytest.mark.parametrize(
-        ("name", "expected"),
-        [
-            ("__repr__", 0),
-            ("__init__", 0),
-            ("run", 1),
-            ("_run", 1),
-            ("__run", 1),
-            ("__run_", 1),
-            ("_run__", 1),
-        ],
-    )
-    def test_magic_method_rank(self, name: str, expected: int) -> None:
-        """Rank dunder methods before all other definitions."""
-        definition = next(Module.I.definitions(ast.parse(f"def {name}(self): pass")))
-
-        assert Module.I.magic_method_rank(definition, ()) == expected
 
     def test_module_definition_dependencies(self) -> None:
         """Return the shared definition-time dependencies."""
@@ -2265,6 +2247,24 @@ def example():
 
         with pytest.raises(LookupError, match="failed to get source span"):
             Module.I.source_span(b"VALUE = 1", statement)
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("__repr__", 0),
+            ("__init__", 0),
+            ("run", 1),
+            ("_run", 1),
+            ("__run", 1),
+            ("__run_", 1),
+            ("_run__", 1),
+        ],
+    )
+    def test_special_method_rank(self, name: str, expected: int) -> None:
+        """Rank dunder methods before all other definitions."""
+        definition = next(Module.I.definitions(ast.parse(f"def {name}(self): pass")))
+
+        assert Module.I.special_method_rank(definition, ()) == expected
 
     def test_standard_definition_ranks(self) -> None:
         """Order ties by visibility, then name."""

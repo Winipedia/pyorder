@@ -1,6 +1,6 @@
 [project]
 name = "pyorder"
-version = "0.12.4"
+version = "0.13.0"
 description = "A Python source code ordering linter."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -14,14 +14,35 @@ authors = [
 maintainers = [
   { name = "Winipedia", email = "winipedia@gmx.de" },
 ]
-keywords = []
+keywords = [
+  "ast",
+  "callers-before-callees",
+  "class-member-ordering",
+  "clean-code",
+  "code-ordering",
+  "code-organization",
+  "code-style",
+  "definition-ordering",
+  "function-ordering",
+  "linter",
+  "method-ordering",
+  "python",
+  "python-linter",
+  "source-code-ordering",
+  "static-analysis",
+]
 classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
   "Programming Language :: Python :: 3.15",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Software Development :: Quality Assurance",
   "Typing :: Typed",
 ]
 dependencies = [

@@ -108,5 +108,21 @@
       ]
     }
   ],
-  "topics": []
+  "topics": [
+    "ast",
+    "callers-before-callees",
+    "class-member-ordering",
+    "clean-code",
+    "code-ordering",
+    "code-organization",
+    "code-style",
+    "definition-ordering",
+    "function-ordering",
+    "linter",
+    "method-ordering",
+    "python",
+    "python-linter",
+    "source-code-ordering",
+    "static-analysis"
+  ]
 }
