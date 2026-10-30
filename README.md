@@ -57,9 +57,8 @@
 source code according to specified rules and conventions. Specifically, it is
 designed to order definitions within a Python module. It does not attempt to order
 everything in a source file, like attributes or statements outside of definitions.
-The only things it focuses on are definitions within a Python module.
 `pyorder` focuses on ordering Python code according to best practices regarding
-readability of Python code, e.g. things like callers appearing before callees.
+readability of Python code.
 
 ## Usage
 
