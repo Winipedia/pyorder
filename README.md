@@ -134,3 +134,7 @@ a consistent ordering of Python source code.However `pyorder` is built on [`pyri
 Therefore customization can be done by writing a plugin. [`pyrig`](https://github.com/Winipedia/pyrig)
 is another tool built on `pyrig-runtime` and describes [how to write a plugin](https://winipedia.github.io/pyrig/plugins/)
 based on the system of `pyrig-runtime` subclasses.
+
+## Documentation
+
+Please refer to the [official documentation](https://winipedia.github.io/pyorder/) for more details and examples.
