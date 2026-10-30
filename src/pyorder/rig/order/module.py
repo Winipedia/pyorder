@@ -65,18 +65,19 @@ class Module(DependencySubclass):
         names = {definition.name for definition in definitions}
         graph = nx.DiGraph()
         graph.add_nodes_from(names)
-        dependency_edges = set()
+        dependency_edges, reference_edges = set(), set()
         for definition in definitions:
             used = references(definition) & names
             needed = dependencies(definition) & names
-            graph.add_edges_from((definition.name, name) for name in used - needed)
+            reference_edges.update((definition.name, name) for name in used - needed)
             dependency_edges.update((name, definition.name) for name in needed)
+        graph.add_edges_from(reference_edges)
         graph.add_edges_from(dependency_edges)
 
         for component in tuple(nx.strongly_connected_components(graph)):
-            edges = set(graph.subgraph(component).edges)
-            if edges & dependency_edges:
+            if (edges := set(graph.subgraph(component).edges)) & dependency_edges:
                 graph.remove_edges_from(edges - dependency_edges)
+
         condensed = nx.condensation(graph)
         return {
             name: rank
