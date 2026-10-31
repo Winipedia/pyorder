@@ -66,9 +66,9 @@ readability of Python code.
 # install pyorder as a development dependency
 uv add pyorder --dev
 # check Python files
-uv run pyorder path/to/your/file1.py path/to/your/file2.py
+uv run pyorder check path/to/your/file1.py path/to/your/file2.py
 # fix Python files
-uv run pyorder --fix path/to/your/file1.py path/to/your/file2.py
+uv run pyorder check --fix path/to/your/file1.py path/to/your/file2.py
 ```
 
 The `--fix` option will modify all files that are not ordered according to the rules.
