@@ -80,13 +80,12 @@ Please check all modified files after fixing to ensure that your code is correct
 
 ## What exactly is being ordered
 
-`pyorder` parses a given file as an abstract syntax tree (AST) and considers the
-following types of definitions within a Python module:
-
-- Module-level definitions, specifically instances of `ast.FunctionDef`, `ast.AsyncFunctionDef`
-and `ast.ClassDef`
-- Module-level class definitions, specifically instances of `ast.ClassDef`, `ast.FunctionDef`,
-and `ast.AsyncFunctionDef`
+`pyorder` parses a given file as an abstract syntax tree (AST) and considers instances
+of `ast.FunctionDef`, `ast.AsyncFunctionDef`, and `ast.ClassDef` on the module level
+and the class level within module-level classes. The philosophy behind this being
+that definitions structure a codebase and ordering just those gives a good balance
+between a forced order for readability and structure and freedom to write your
+code as you please.
 
 ## Ordering Rules
 
