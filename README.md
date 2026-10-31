@@ -62,6 +62,8 @@ readability of Python code.
 
 ## Usage
 
+Requires Python 3.12+.
+
 ```bash
 # install pyorder as a development dependency
 uv add pyorder --dev
@@ -70,6 +72,10 @@ uv run pyorder check path/to/your/file1.py path/to/your/file2.py
 # fix Python files
 uv run pyorder check --fix path/to/your/file1.py path/to/your/file2.py
 ```
+
+`pyorder check` will only exit with a zero status code if all files were found
+to be correctly ordered from the beginning, anything else will cause exit code 1,
+even if the files are later fixed with `--fix`.
 
 The `--fix` option will modify all files that are not ordered according to the rules.
 Although `pyorder` attempts to respect valid Python syntax, it does NOT guarantee
@@ -124,6 +130,58 @@ it, e.g. base classes, arg/kwargs defaults, or decorators).
 - visibility-ordering: public before private definitions (e.g., `public`,
 `_private`, `__more_private`) within the class.
 - alphabetical-ordering: definitions are ordered alphabetically within the class.
+
+### Example
+
+Before:
+
+```python
+class ExampleClass:
+    def public_method(self):
+        return self._private_method()
+
+    def _private_method(self):
+        return "done"
+
+    class NestedExample:
+        pass
+
+    def __init__(self):
+        pass
+
+
+def _private_helper():
+    return ExampleClass()
+
+
+def public_caller():
+    return _private_helper()
+```
+
+After running `pyorder check --fix example.py`:
+
+```python
+def public_caller():
+    return _private_helper()
+
+
+def _private_helper():
+    return ExampleClass()
+
+
+class ExampleClass:
+    class NestedExample:
+        pass
+
+    def __init__(self):
+        pass
+
+    def public_method(self):
+        return self._private_method()
+
+    def _private_method(self):
+        return "done"
+```
 
 ## Customization
 
