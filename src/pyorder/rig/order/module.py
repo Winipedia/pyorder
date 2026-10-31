@@ -4,7 +4,7 @@ import ast
 import difflib
 import tokenize
 from abc import abstractmethod
-from collections.abc import Callable, Iterable, Iterator, KeysView
+from collections.abc import Callable, Hashable, Iterable, Iterator, KeysView
 from functools import lru_cache
 from pathlib import Path
 from types import ModuleType
@@ -37,6 +37,18 @@ class Module(DependencySubclass):
     def discovery_module(cls) -> ModuleType:
         """Return the package that scopes subclass discovery."""
         return order
+
+    @classmethod
+    @override
+    def merge_key(cls) -> Hashable:
+        """Return a key for merging subclasses of this class.
+
+        There is always only one Module subclass, so the merge key is constant.
+
+        Returns:
+            The fully qualified name of the Module class.
+        """
+        return str(Module)
 
     @classmethod
     @lru_cache(maxsize=1)

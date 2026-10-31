@@ -1078,6 +1078,10 @@ def zebra(): pass
         """Compare source exactly, including whitespace."""
         assert Module.I.is_ordered(unordered, ordered) is expected
 
+    def test_merge_key(self) -> None:
+        """Test method."""
+        assert Module.I.merge_key() == "pyorder.rig.order.module.Module"
+
     def test_module_definition_dependencies(self) -> None:
         """Return the shared definition-time dependencies."""
         code = """@decorate
