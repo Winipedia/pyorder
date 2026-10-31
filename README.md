@@ -96,9 +96,9 @@ each level of definitions.
 
 ### Module-level definitions
 
-- callers-before-callees: a definition that calls another definition appears
-before that definition (excluded are hard dependencies that are needed at definition
-time, e.g. base classes, arg/kwargs defaults, or decorators).
+- callers-before-callees: a definition that uses another definition should be defined
+before it. (Hard dependencies that are needed at definition time are ordered before
+it, e.g. base classes, arg/kwargs defaults, or decorators).
 - functions-before-classes: functions should be defined before classes within
 the module.
 - visibility-ordering: public before private definitions (e.g.,
@@ -108,8 +108,8 @@ the module.
 ### Class-level definitions
 
 - classes-before-methods: nested classes should be defined before methods.
-- constructor-first: Constructor methods (e.g., `__new__`, `__init__`) should be
-defined before other methods.
+- constructor-first: Constructor methods(e.g., `__init_subclass__`, `__new__`,
+`__init__`) should be defined before other methods.
 - abstract-first: methods decorated with `@abstractmethod` should be defined
 before other methods.
 - overrides-first: methods decorated with `@override` should be defined before
@@ -118,9 +118,9 @@ other methods.
 defined before other methods.
 - classmethods-first: methods decorated with `@classmethod` should be defined
 before other methods.
-- callers-before-callees: a definition that calls another definition should be defined
-before that definition (excluded are hard dependencies that are needed at definition
-time, e.g. base classes, arg/kwargs defaults, or decorators).
+- callers-before-callees: a definition that uses another definition should be defined
+before it. (Hard dependencies that are needed at definition time are ordered before
+it, e.g. base classes, arg/kwargs defaults, or decorators).
 - visibility-ordering: public before private definitions (e.g., `public`,
 `_private`, `__more_private`) within the class.
 - alphabetical-ordering: definitions are ordered alphabetically within the class.
