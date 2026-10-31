@@ -84,6 +84,9 @@ It simply reorders the definitions according to the rules. Run `pyorder` without
 the `--fix` option first to see the diff output of files that would be modified.
 Please check all modified files after fixing to ensure that your code is correct.
 
+As can be seen from this design, `pyorder` can be very nicely integrated as a pre-commit
+hook.
+
 ## What exactly is being ordered
 
 `pyorder` parses a given file as an abstract syntax tree (AST) and considers instances
