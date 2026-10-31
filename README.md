@@ -129,10 +129,9 @@ time, e.g. base classes, arg/kwargs defaults, or decorators).
 
 `pyorder` does not support inline comments like `# noqa`. The missing support for
 inline comments is intentional and is part of this tool's philosophy of enforcing
-a consistent ordering of Python source code.However `pyorder` is built on [`pyrig-runtime`](https://github.com/Winipedia/pyrig-runtime).
-Therefore customization can be done by writing a plugin. [`pyrig`](https://github.com/Winipedia/pyrig)
-is another tool built on `pyrig-runtime` and describes [how to write a plugin](https://winipedia.github.io/pyrig/plugins/)
-based on the system of `pyrig-runtime` subclasses.
+a consistent ordering of Python source code. However `pyorder` is built on [`pyrig-runtime`](https://github.com/Winipedia/pyrig-runtime).
+Therefore any customizations and adjustments can be achieved by writing a plugin
+based on the subclassing system of `pyrig-runtime`.
 
 ## Documentation
 
