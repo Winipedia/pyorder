@@ -1,6 +1,6 @@
 [project]
 name = "pyorder"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Python source code ordering linter."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -151,6 +151,7 @@ strict = true
 [tool.ryl.lint.rules]
 ALL = "enable"
 key-ordering = "disable"
+yaml-directive = "disable"
 
 [tool.vulture]
 paths = [
