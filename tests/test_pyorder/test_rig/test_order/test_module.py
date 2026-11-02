@@ -1086,6 +1086,12 @@ def zebra(): pass
         """Compare source exactly, including whitespace."""
         assert Module.I.is_ordered(unordered, ordered) is expected
 
+    def test_line_offsets(self) -> None:
+        """Return each line's start offset followed by the total length."""
+        lines = [b"ab\n", b"\r\n", "é".encode()]
+        assert Module.I.line_offsets(lines) == (0, 3, 5, 7)
+        assert Module.I.line_offsets([]) == (0,)
+
     def test_merge_key(self) -> None:
         """Test method."""
         assert Module.I.merge_key() == "pyorder.rig.order.module.Module"
@@ -2292,7 +2298,8 @@ def example():
         original = ast.dump(definition, include_attributes=True)
 
         lines = Module.I.source_lines(code.encode("utf-8"))
-        assert Module.I.source_span(lines, definition) == (
+        offsets = Module.I.line_offsets(lines)
+        assert Module.I.source_span(lines, offsets, definition) == (
             0,
             len(code) - 1,
         )
@@ -2301,7 +2308,13 @@ def example():
         assignment_code = "VALUE = 1"
         assignment = ast.parse(assignment_code).body[0]
 
-        assert Module.I.source_span([assignment_code.encode("utf-8")], assignment) == (
+        assignment_lines = [assignment_code.encode("utf-8")]
+        assignment_offsets = Module.I.line_offsets(assignment_lines)
+        assert Module.I.source_span(
+            assignment_lines,
+            assignment_offsets,
+            assignment,
+        ) == (
             0,
             len(assignment_code),
         )
@@ -2313,7 +2326,7 @@ def example():
         setattr(statement, attribute, None)
 
         with pytest.raises(LookupError, match="failed to get source span"):
-            Module.I.source_span([b"VALUE = 1"], statement)
+            Module.I.source_span([b"VALUE = 1"], (0, 9), statement)
 
     @pytest.mark.parametrize(
         ("name", "expected"),

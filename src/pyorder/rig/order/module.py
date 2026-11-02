@@ -6,6 +6,7 @@ import tokenize
 from abc import abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, KeysView
 from functools import lru_cache
+from itertools import accumulate
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, override
@@ -43,10 +44,10 @@ class Module(DependencySubclass):
     def merge_key(cls) -> Hashable:
         """Return a key for merging subclasses of this class.
 
-        There is always only one Module subclass, so the merge key is constant.
+        Use a constant key so Module subclasses are merged together.
 
         Returns:
-            The fully qualified name of the Module class.
+            The string representation of the Module class.
         """
         return str(Module)
 
@@ -202,9 +203,9 @@ class Module(DependencySubclass):
         )
 
     def write_text(self, file: Path, code: str) -> None:
-        """Overwrite a file using its detected encoding and first-line newline.
+        """Overwrite a file using its detected encoding and newline sequence.
 
-        If the first line has no line terminator, use LF.
+        If no line terminator is detected, use LF.
 
         Args:
             file: Path to an existing Python source file.
@@ -214,14 +215,17 @@ class Module(DependencySubclass):
         file.write_text(code, encoding=encoding, newline=newline)
 
     def file_info(self, file: Path) -> tuple[str, str]:
-        """Detect the source encoding and first-line newline sequence.
+        """Detect the source encoding and newline sequence.
+
+        Read one line; buffering may detect newlines beyond that line.
+        If multiple styles are detected, use the first reported style.
 
         Args:
             file: Path to an existing Python source file.
 
         Returns:
             A pair of the encoding name and newline sequence. The sequence
-            defaults to LF if the first line has no terminator.
+            defaults to LF if no line terminator is detected.
         """
         with tokenize.open(file) as f:
             f.readline()
@@ -535,7 +539,8 @@ class Module(DependencySubclass):
         """
         source = self.encode_source(code)
         lines = self.source_lines(source)
-        spans = {node: self.source_span(lines, node) for node in unordered}
+        offsets = self.line_offsets(lines)
+        spans = {node: self.source_span(lines, offsets, node) for node in unordered}
         ordered_sources = tuple(
             source[start:end] for start, end in (spans[node] for node in ordered)
         )
@@ -784,6 +789,17 @@ class Module(DependencySubclass):
         """
         return code.encode(SOURCE_ENCODING)
 
+    def line_offsets(self, lines: list[bytes]) -> tuple[int, ...]:
+        """Return the byte offset at which each line starts.
+
+        Args:
+            lines: UTF-8 encoded source lines, with line endings kept.
+
+        Returns:
+            Start offsets for every line, followed by the total source length.
+        """
+        return tuple(accumulate(map(len, lines), initial=0))
+
     def module_definition_dependencies(
         self,
         definition: AnyDefinition,
@@ -813,13 +829,14 @@ class Module(DependencySubclass):
             source: UTF-8 encoded source.
 
         Returns:
-            The source lines, each with its original line ending.
+            The source lines with any existing line endings preserved.
         """
         return source.splitlines(keepends=True)
 
     def source_span(
         self,
         lines: list[bytes],
+        offsets: tuple[int, ...],
         node: ast.stmt,
     ) -> tuple[int, int]:
         """Return a node's start and exclusive end as UTF-8 byte offsets.
@@ -829,6 +846,7 @@ class Module(DependencySubclass):
         Args:
             lines: UTF-8 encoded source lines, with line endings kept,
                 corresponding to the node's locations.
+            offsets: Byte offset of each line's start, as from ``line_offsets``.
             node: Parsed statement whose source segment is required.
 
         Returns:
@@ -855,8 +873,8 @@ class Module(DependencySubclass):
         if end_line[end_col_offset:].lstrip(b" \t\f").startswith(b"#"):
             end_col_offset = len(end_line)
         return (
-            sum(map(len, lines[:lineno])) + col_offset,
-            sum(map(len, lines[:end_lineno])) + end_col_offset,
+            offsets[lineno] + col_offset,
+            offsets[end_lineno] + end_col_offset,
         )
 
     def definition_dependencies(self, definition: AnyDefinition) -> KeysView[str]:
