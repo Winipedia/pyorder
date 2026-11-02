@@ -533,8 +533,9 @@ class Module(DependencySubclass):
         Returns:
             Source with the selected segments replaced in the requested order.
         """
-        source = code.encode(SOURCE_ENCODING)
-        spans = {node: self.source_span(source, node) for node in unordered}
+        source = self.encode_source(code)
+        lines = self.source_lines(source)
+        spans = {node: self.source_span(lines, node) for node in unordered}
         ordered_sources = tuple(
             source[start:end] for start, end in (spans[node] for node in ordered)
         )
@@ -542,7 +543,7 @@ class Module(DependencySubclass):
             tuple(zip(spans.values(), ordered_sources, strict=True)),
         ):
             source = source[:start] + replacement + source[end:]
-        return source.decode(SOURCE_ENCODING)
+        return self.decode_source(source)
 
     def reverse_definition_kind_rank(
         self,
@@ -642,6 +643,17 @@ class Module(DependencySubclass):
                 )
             )
         ).keys()
+
+    def decode_source(self, source: bytes) -> str:
+        """Decode UTF-8 source bytes.
+
+        Args:
+            source: UTF-8 encoded source.
+
+        Returns:
+            The decoded source.
+        """
+        return source.decode(SOURCE_ENCODING)
 
     def decorator_names(self, definition: AnyDefinition) -> Iterator[str]:
         """Return the final names of plain name and attribute decorators.
@@ -761,6 +773,17 @@ class Module(DependencySubclass):
         name = definition.name
         return len(name) - len(name.lstrip("_"))
 
+    def encode_source(self, code: str) -> bytes:
+        """Encode source as UTF-8, matching the AST's byte offsets.
+
+        Args:
+            code: Source to encode.
+
+        Returns:
+            The UTF-8 encoded source.
+        """
+        return code.encode(SOURCE_ENCODING)
+
     def module_definition_dependencies(
         self,
         definition: AnyDefinition,
@@ -783,9 +806,20 @@ class Module(DependencySubclass):
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
         ).keys()
 
+    def source_lines(self, source: bytes) -> list[bytes]:
+        """Split encoded source into lines, keeping line endings.
+
+        Args:
+            source: UTF-8 encoded source.
+
+        Returns:
+            The source lines, each with its original line ending.
+        """
+        return source.splitlines(keepends=True)
+
     def source_span(
         self,
-        source: bytes,
+        lines: list[bytes],
         node: ast.stmt,
     ) -> tuple[int, int]:
         """Return a node's start and exclusive end as UTF-8 byte offsets.
@@ -793,11 +827,13 @@ class Module(DependencySubclass):
         Include decorators and final inline comments without modifying the node.
 
         Args:
-            source: UTF-8 encoded source corresponding to the node's locations.
+            lines: UTF-8 encoded source lines, with line endings kept,
+                corresponding to the node's locations.
             node: Parsed statement whose source segment is required.
 
         Returns:
-            Byte offsets enclosing the node, including its final inline comment.
+            Byte offsets into the joined ``lines``, enclosing the node and its
+            final inline comment.
 
         Raises:
             LookupError: If the statement lacks end locations.
@@ -810,7 +846,6 @@ class Module(DependencySubclass):
             raise LookupError(msg)
         lineno = node.lineno - 1
         end_lineno = end_lineno - 1
-        lines = source.splitlines(keepends=True)
         if isinstance(node, DEFINITIONS) and (decorator_list := node.decorator_list):
             lineno = decorator_list[0].lineno - 1
             while not lines[lineno].lstrip(b" \t\f").startswith(b"@"):

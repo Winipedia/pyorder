@@ -391,6 +391,10 @@ def method(cls):
 
         assert Module.I.constructor_method_rank(definition, ()) == expected
 
+    def test_decode_source(self) -> None:
+        """Decode UTF-8 source bytes."""
+        assert Module.I.decode_source("x = 'é'\n".encode()) == "x = 'é'\n"
+
     @pytest.mark.parametrize(
         ("code", "expected"),
         [
@@ -1017,6 +1021,10 @@ class Example:
     def test_discovery_module(self) -> None:
         """Discover ordering policies in the order package."""
         assert Module.I.discovery_module() is order
+
+    def test_encode_source(self) -> None:
+        """Encode source as UTF-8 bytes."""
+        assert Module.I.encode_source("x = 'é'\n") == "x = 'é'\n".encode()
 
     @pytest.mark.parametrize(
         "encoding",
@@ -2265,6 +2273,15 @@ class Example: pass
             for definition in definitions
         ] == [0, 0, -1]
 
+    def test_source_lines(self) -> None:
+        """Split encoded source into lines, keeping every line ending."""
+        assert Module.I.source_lines(b"a\nb\r\nc\rd") == [
+            b"a\n",
+            b"b\r\n",
+            b"c\r",
+            b"d",
+        ]
+
     def test_source_span(self) -> None:
         """Include decorators without mutating the node and support statements."""
         code = """@decorate
@@ -2274,7 +2291,8 @@ def example():
         definition = ast.parse(code).body[0]
         original = ast.dump(definition, include_attributes=True)
 
-        assert Module.I.source_span(code.encode("utf-8"), definition) == (
+        lines = Module.I.source_lines(code.encode("utf-8"))
+        assert Module.I.source_span(lines, definition) == (
             0,
             len(code) - 1,
         )
@@ -2283,7 +2301,7 @@ def example():
         assignment_code = "VALUE = 1"
         assignment = ast.parse(assignment_code).body[0]
 
-        assert Module.I.source_span(assignment_code.encode("utf-8"), assignment) == (
+        assert Module.I.source_span([assignment_code.encode("utf-8")], assignment) == (
             0,
             len(assignment_code),
         )
@@ -2295,7 +2313,7 @@ def example():
         setattr(statement, attribute, None)
 
         with pytest.raises(LookupError, match="failed to get source span"):
-            Module.I.source_span(b"VALUE = 1", statement)
+            Module.I.source_span([b"VALUE = 1"], statement)
 
     @pytest.mark.parametrize(
         ("name", "expected"),
