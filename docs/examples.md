@@ -5,6 +5,45 @@ Each pair shows the source before ordering and the result of
 real files, the first rule that differs takes precedence. The rule sections
 within each scope are listed in priority order.
 
+## Rule priority
+
+For any two definitions, the first rule that ranks them differently decides
+their order. Later rules only break ties. For example, callers-before-callees
+comes before functions-before-classes, so a class that calls a module-level
+function goes before that function:
+
+Before:
+
+```python
+def class_utility():
+    return 1
+
+
+def another_utility():
+    return 2
+
+
+class Example:
+    def run(self):
+        return class_utility()
+```
+
+After:
+
+```python
+def another_utility():
+    return 2
+
+
+class Example:
+    def run(self):
+        return class_utility()
+
+
+def class_utility():
+    return 1
+```
+
 ## Module-level definitions
 
 ### Callers before callees

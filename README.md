@@ -101,7 +101,8 @@ code as you please.
 `pyorder` enforces the rules on two levels, module-level definitions and
 class-level definitions of module-level classes.
 The listed rules below are applied as a sorting key in that priority order within
-each level of definitions.
+each level of definitions, meaning for any two definitions, the first rule that
+ranks them differently decides their order; later rules only break ties.
 
 ### Module-level definitions
 
@@ -139,6 +140,10 @@ it, e.g. base classes, arg/kwargs defaults, or decorators).
 Before:
 
 ```python
+def example_class_helper():
+    pass
+
+
 class ExampleClass:
     def public_method(self):
         return self._private_method()
@@ -150,7 +155,7 @@ class ExampleClass:
         pass
 
     def __init__(self):
-        pass
+        example_class_helper()
 
 
 def _private_helper():
@@ -177,13 +182,17 @@ class ExampleClass:
         pass
 
     def __init__(self):
-        pass
+        example_class_helper()
 
     def public_method(self):
         return self._private_method()
 
     def _private_method(self):
         return "done"
+
+
+def example_class_helper():
+    pass
 ```
 
 ## Customization
