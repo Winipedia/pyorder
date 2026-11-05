@@ -1,6 +1,6 @@
 [project]
 name = "pyorder"
-version = "1.0.19"
+version = "1.0.20"
 description = "A Python source code ordering linter."
 readme = "README.md"
 requires-python = ">=3.12"

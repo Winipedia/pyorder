@@ -149,7 +149,7 @@ class ExampleClass:
         return self._private_method()
 
     def _private_method(self):
-        return "done"
+        pass
 
     class NestedExample:
         pass
@@ -188,7 +188,7 @@ class ExampleClass:
         return self._private_method()
 
     def _private_method(self):
-        return "done"
+        pass
 
 
 def example_class_helper():
