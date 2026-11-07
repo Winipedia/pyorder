@@ -3,7 +3,7 @@
 [![pyorder](docs/assets/banner.svg)](docs/assets/banner.svg)
 
 <!-- project-status -->
-[![CI](https://img.shields.io/github/actions/workflow/status/Winipedia/pyorder/health_check.yml?label=CI&logo=github)](https://github.com/Winipedia/pyorder/actions/workflows/health_check.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/Winipedia/pyorder/health-check.yml?label=CI&logo=github)](https://github.com/Winipedia/pyorder/actions/workflows/health-check.yml)
 [![CD](https://img.shields.io/github/actions/workflow/status/Winipedia/pyorder/release.yml?label=CD&logo=github)](https://github.com/Winipedia/pyorder/actions/workflows/release.yml)
 [![ProjectTester](https://codecov.io/gh/Winipedia/pyorder/branch/main/graph/badge.svg)](https://codecov.io/gh/Winipedia/pyorder)
 <!-- code-quality -->
