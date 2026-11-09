@@ -6,11 +6,13 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/Winipedia/pyorder/health-check.yml?label=CI&logo=github)](https://github.com/Winipedia/pyorder/actions/workflows/health-check.yml)
 [![CD](https://img.shields.io/github/actions/workflow/status/Winipedia/pyorder/release.yml?label=CD&logo=github)](https://github.com/Winipedia/pyorder/actions/workflows/release.yml)
 [![ProjectTester](https://codecov.io/gh/Winipedia/pyorder/branch/main/graph/badge.svg)](https://codecov.io/gh/Winipedia/pyorder)
+[![SecurityPracticesChecker](https://api.scorecard.dev/projects/github.com/Winipedia/pyorder/badge)](https://scorecard.dev/viewer/?uri=github.com/Winipedia/pyorder)
 <!-- code-quality -->
 [![ByteOrderMarkerFormatter](https://img.shields.io/badge/BOM-fix--byte--order--marker-orange)](https://prek.j178.dev/reference/built-in-hooks/#fix-byte-order-marker)
 [![CICDLinter](https://img.shields.io/badge/CI/CD-actionlint-blue)](https://github.com/rhysd/actionlint)
 [![CICDSecurityChecker](https://img.shields.io/badge/%F0%9F%8C%88-zizmor-white?labelColor=white)](https://github.com/zizmorcore/zizmor)
 [![CaseConflictChecker](https://img.shields.io/badge/case--conflict-check--case--conflict-blue)](https://prek.j178.dev/reference/built-in-hooks/#check-case-conflict)
+[![CodeAnalyzer](https://img.shields.io/badge/code%20analysis-CodeQL-181717?logo=github)](https://codeql.github.com/docs/)
 [![DeadCodeChecker](https://img.shields.io/badge/dead--code-vulture-blue)](https://github.com/jendrikseipp/vulture)
 [![DependencyChecker](https://img.shields.io/badge/dependencies-deptry-blue)](https://github.com/osprey-oss/deptry)
 [![EndOfFileFormatter](https://img.shields.io/badge/EOF-end--of--file--fixer-orange)](https://prek.j178.dev/reference/built-in-hooks/#end-of-file-fixer)
