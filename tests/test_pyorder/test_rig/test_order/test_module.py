@@ -5,6 +5,8 @@ from collections.abc import KeysView
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from pyorder.rig import order
 from pyorder.rig.order.module import Module
@@ -1795,6 +1797,53 @@ def decorate(value):
         assert Module.I.order_code(code) == expected
         assert Module.I.order_code(expected) == expected
 
+    @pytest.mark.parametrize("class_body", [False, True])
+    @given(
+        edges=st.sets(st.tuples(st.integers(0, 5), st.integers(0, 5))),
+        permutation=st.permutations(tuple(range(6))),
+    )
+    def test_order_code_generated_references(
+        self,
+        edges: set[tuple[int, int]],
+        permutation: list[int],
+        *,
+        class_body: bool,
+    ) -> None:
+        """Reference graphs produce a stable ordering without changing definitions."""
+        blocks = []
+        for index in range(6):
+            references = [
+                f"{'self.' if class_body else ''}func_{target}()"
+                for source, target in sorted(edges)
+                if source == index
+            ]
+            body = "; ".join(references) or "pass"
+            blocks.append(f"def func_{index}({'self' if class_body else ''}): {body}")
+
+        def source(indices: list[int] | range) -> str:
+            code = "\n\n".join(blocks[index] for index in indices) + "\n"
+            if class_body:
+                code = "class Example:\n" + "".join(
+                    f"    {line}\n" if line else "\n" for line in code.splitlines()
+                )
+            return code
+
+        ordered = Module.I.order_code(source(permutation))
+        assert ordered == Module.I.order_code(source(range(6)))
+        assert Module.I.order_code(ordered) == ordered
+        original_tree = ast.parse(source(permutation))
+        ordered_tree = ast.parse(ordered)
+        original_scope = original_tree.body[0] if class_body else original_tree
+        ordered_scope = ordered_tree.body[0] if class_body else ordered_tree
+        assert isinstance(original_scope, (ast.Module, ast.ClassDef))
+        assert isinstance(ordered_scope, (ast.Module, ast.ClassDef))
+        assert {
+            node.name: ast.dump(node) for node in Module.I.definitions(ordered_scope)
+        } == {
+            node.name: ast.dump(node) for node in Module.I.definitions(original_scope)
+        }
+        compile(ordered, "<ordered>", "exec")
+
     def test_order_code_override_priority(self) -> None:
         """Place overrides after abstract methods and before ordinary methods."""
         code = """class Example:
@@ -2204,6 +2253,36 @@ def first(): pass
             == expected
         )
         compile(expected, "<ordered>", "exec")
+
+    @given(
+        values=st.lists(
+            st.tuples(st.booleans(), st.booleans(), st.text(max_size=40)),
+            min_size=1,
+            max_size=8,
+        ),
+    )
+    def test_reorder_code_preserves_generated_blocks(
+        self,
+        values: list[tuple[bool, bool, str]],
+    ) -> None:
+        """Move exact decorated source blocks without altering matching string text."""
+        blocks = []
+        for index, (decorated, asynchronous, text) in enumerate(values):
+            decorator = "@decorate\n" if decorated else ""
+            prefix = "async " if asynchronous else ""
+            blocks.append(
+                f"{decorator}{prefix}def func_{index}():\n"
+                f"    return {text!r}  # attached comment {index}",
+            )
+        example = "\n".join(blocks)
+        header = f"{example!r}\n\n"
+        code = header + "\n\n".join(blocks) + "\n"
+        definitions = tuple(Module.I.definitions(ast.parse(code)))
+
+        result = Module.I.reorder_code(code, iter(definitions), reversed(definitions))
+
+        assert result == header + "\n\n".join(reversed(blocks)) + "\n"
+        compile(result, "<reordered>", "exec")
 
     def test_reorder_definitions(self) -> None:
         """Use supplied definitions and ranks without moving other source."""
