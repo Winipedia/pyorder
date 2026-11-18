@@ -1,6 +1,6 @@
 [project]
 name = "pyorder"
-version = "1.0.58"
+version = "1.0.59"
 description = "A Python linter for ordering source code."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -154,6 +154,13 @@ strict = true
 ALL = "enable"
 key-ordering = "disable"
 yaml-directive = "disable"
+
+[tool.typos.default]
+extend-ignore-re = [
+  "(?m)^.*spellchecker:disable-line.*$",
+  "(?m)^.*spellchecker:disable-next-line.*\n.*",
+]
+locale = "en-us"
 
 [tool.vulture]
 paths = [
